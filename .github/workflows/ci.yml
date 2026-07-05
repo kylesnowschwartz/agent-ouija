@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # registry uses syscall.Kill and ps; both platforms must stay green.
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+      - name: Zero external dependencies
+        run: |
+          test -z "$(go list -m all | tail -n +2)" || {
+            echo "external dependencies detected:"; go list -m all | tail -n +2; exit 1; }
+          test ! -f go.sum || { echo "go.sum exists — a dependency crept in"; exit 1; }
+
+      - name: Go directive pinned to 1.25.5
+        run: grep -q '^go 1\.25\.5$' go.mod || { echo "go directive changed — check all three consumers first"; exit 1; }
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (race)
+        run: go test -race ./...
+
+      - name: Benchmarks compile and run once
+        run: go test -run xxx -bench . -benchtime 1x ./claude/transcript/ ./offsetstore/
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
