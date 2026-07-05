@@ -1,0 +1,58 @@
+# Schema-drift canary.
+#
+# The fixture suite in CI can never catch NEW drift — fixtures are frozen.
+# This workflow generates a genuinely fresh transcript by running the
+# latest released Claude Code headless (one tiny haiku turn + one echo
+# tool call), then feeds it to the gated corpus test. A key Anthropic
+# added that our allowlists don't know fails the run, and GitHub emails
+# the failure to the workflow author (scheduled-run failures notify the
+# last committer of this file).
+#
+# Requires the ANTHROPIC_API_KEY repository secret. Cost per run is a
+# fraction of a cent (single haiku turn, weekly).
+name: Drift canary
+
+on:
+  schedule:
+    - cron: "0 18 * * 0" # Monday morning NZT
+  workflow_dispatch:
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Require API key secret
+        run: |
+          [ -n "$ANTHROPIC_API_KEY" ] || {
+            echo "::error::ANTHROPIC_API_KEY repository secret is not set"; exit 1; }
+
+      - name: Install latest Claude Code
+        run: npm install -g @anthropic-ai/claude-code@latest && claude --version
+
+      - name: Generate a fresh transcript
+        env:
+          CLAUDE_CONFIG_DIR: ${{ runner.temp }}/claude
+        run: |
+          claude -p "Run \`echo drift-canary\` with your Bash tool, then reply with exactly one word: done." \
+            --model claude-haiku-4-5-20251001 \
+            --allowedTools "Bash(echo:*)"
+
+      - name: Transcript actually exists
+        # TestCorpus passes vacuously on an empty tree; a canary that
+        # checks nothing must fail loudly instead.
+        run: |
+          find "${{ runner.temp }}/claude/projects" -name '*.jsonl' | grep -q . || {
+            echo "::error::no transcript produced — canary is broken, not green"; exit 1; }
+
+      - name: Corpus allowlist check
+        env:
+          CLAUDE_CORPUS_DIR: ${{ runner.temp }}/claude/projects
+        run: go test ./claude/transcript/ -run TestCorpus -v
