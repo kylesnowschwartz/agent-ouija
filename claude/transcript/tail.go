@@ -52,19 +52,48 @@ func ScanTailEntries(path string, maxBytes int64, fn func(Entry) bool) error {
 //     full Entry: format drift in an unrelated modeled field must never
 //     reject the line and silently drop the model.
 func LastAssistantModel(path string) (model string, modTime time.Time) {
+	model, _, modTime = lastAssistantModelScan(path)
+	return model, modTime
+}
+
+// LastAssistantModelAt is LastAssistantModel arbitrating by ENTRY time:
+// it returns the matched assistant entry's own timestamp instead of the
+// transcript file's mtime, falling back to the file mtime when the entry
+// carries no parseable timestamp.
+//
+// Why it exists (gearshifter, 2026-07-05): a transcript's file mtime
+// moves on EVERY appended entry — user prompts, local slash commands —
+// so "transcript file newer than settings.json" does not mean "the
+// model fact is newer". A live session's /model change writes settings
+// and appends a user entry in the same breath; file-mtime arbitration
+// then keeps showing the pre-change model until the next assistant
+// reply. The entry timestamp is when the model was actually observed.
+func LastAssistantModelAt(path string) (model string, at time.Time) {
+	model, entryTime, fileTime := lastAssistantModelScan(path)
+	if !entryTime.IsZero() {
+		return model, entryTime
+	}
+	return model, fileTime
+}
+
+// lastAssistantModelScan is the shared bottom-up scan: the matched
+// entry's model and parsed timestamp (zero when absent), plus the file
+// mtime from the SAME Stat as the scanned window so the pair is always
+// coherent.
+func lastAssistantModelScan(path string) (model string, entryTime, fileTime time.Time) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return "", time.Time{}
+		return "", time.Time{}, time.Time{}
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		return "", time.Time{}
+		return "", time.Time{}, time.Time{}
 	}
 	defer f.Close()
 	offset := max(0, info.Size()-tailScanBytes)
 	buf := make([]byte, info.Size()-offset)
 	if _, err := f.ReadAt(buf, offset); err != nil {
-		return "", time.Time{}
+		return "", time.Time{}, time.Time{}
 	}
 	lines := bytes.Split(buf, []byte("\n"))
 	for i := len(lines) - 1; i >= 0; i-- {
@@ -73,8 +102,9 @@ func LastAssistantModel(path string) (model string, modTime time.Time) {
 			continue
 		}
 		var entry struct {
-			Type    string `json:"type"`
-			Message struct {
+			Type      string `json:"type"`
+			Timestamp string `json:"timestamp"`
+			Message   struct {
 				Model string `json:"model"`
 			} `json:"message"`
 		}
@@ -82,8 +112,8 @@ func LastAssistantModel(path string) (model string, modTime time.Time) {
 			continue // first line of the tail window may be truncated
 		}
 		if entry.Type == "assistant" && entry.Message.Model != "" && entry.Message.Model != "<synthetic>" {
-			return entry.Message.Model, info.ModTime()
+			return entry.Message.Model, ParseTimestamp(entry.Timestamp), info.ModTime()
 		}
 	}
-	return "", time.Time{}
+	return "", time.Time{}, time.Time{}
 }

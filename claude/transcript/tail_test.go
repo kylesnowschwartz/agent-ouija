@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kylesnowschwartz/agent-ouija/claude/transcript"
 )
@@ -103,5 +104,37 @@ func TestScanTailEntries_EarlyStop(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("fn called %d times after returning false, want 1", count)
+	}
+}
+
+// LastAssistantModelAt returns the ENTRY's timestamp — the fix for the
+// live-session arbitration bug (gearshifter 2026-07-05): a /model
+// change appends a user entry, bumping the FILE mtime past the fresh
+// settings.json while the model fact itself is old. Entries without a
+// timestamp fall back to the file mtime (old fixtures keep the
+// file-mtime semantics).
+func TestLastAssistantModelAt(t *testing.T) {
+	path := writeSession(t,
+		`{"type":"assistant","timestamp":"2026-07-04T10:00:00.000Z","message":{"model":"claude-fable-5"}}`,
+		`{"type":"user","timestamp":"2026-07-05T09:00:00.000Z","message":{}}`,
+	)
+	model, at := transcript.LastAssistantModelAt(path)
+	if model != "claude-fable-5" {
+		t.Errorf("model = %q, want claude-fable-5", model)
+	}
+	want := time.Date(2026, 7, 4, 10, 0, 0, 0, time.UTC)
+	if !at.Equal(want) {
+		t.Errorf("at = %v, want the assistant ENTRY's timestamp %v (not the file mtime)", at, want)
+	}
+
+	// No timestamp on the matched entry → file mtime fallback.
+	path = writeSession(t, `{"type":"assistant","message":{"model":"claude-opus-4-8"}}`)
+	model, at = transcript.LastAssistantModelAt(path)
+	if model != "claude-opus-4-8" || at.IsZero() {
+		t.Errorf("timestampless entry must fall back to file mtime, got %q %v", model, at)
+	}
+
+	if m, _ := transcript.LastAssistantModelAt(filepath.Join(t.TempDir(), "missing.jsonl")); m != "" {
+		t.Errorf("missing transcript must yield empty, got %q", m)
 	}
 }

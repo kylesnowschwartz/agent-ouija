@@ -5,6 +5,21 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.1.0 — 2026-07-05
+
+Additive only.
+
+- `transcript.LastAssistantModelAt(path)` — LastAssistantModel
+  arbitrating by ENTRY time: returns the matched assistant entry's own
+  timestamp (file-mtime fallback when the entry has none).
+  `LastAssistantModel`'s pinned file-mtime contract is unchanged. Why:
+  a transcript's file mtime moves on every appended entry — user
+  prompts, local slash commands — so "transcript newer than
+  settings.json" does not mean the model fact is newer; a live
+  session's /model change was losing the freshness arbitration until
+  the next assistant reply (found live in gearshifter's strip,
+  2026-07-05). Consumer: gearshifter session-state arbitration.
+
 ## v1.0.0 — 2026-07-05
 
 The API as of v0.4.2, frozen. No code changes.
