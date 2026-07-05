@@ -5,6 +5,27 @@ listed here. v1.0.0 comes only after all three consumers (tail-claude,
 tail-claude-hud, gearshifter) have migrated and one real Anthropic
 format-drift cycle has been absorbed without API breakage.
 
+## v0.3.0 — 2026-07-05
+
+First real Anthropic format-drift event, absorbed library-side with a
+fixture (the v1.0.0 gate asks for a drift cycle absorbed *without API
+breakage* — this one forced a field type change, so the gate stays
+open).
+
+- **Breaking**: `registry.Live.StartedAt` is now `registry.EpochMS`
+  (int64 milliseconds) instead of `string`. Current Claude Code writes
+  `startedAt` as an epoch-ms JSON number; the strict string decode
+  failed every unmarshal and `registry.Read` returned zero entries on
+  2.1.19x. `EpochMS` tolerates the number, numeric-string, and RFC3339
+  encodings; unknown shapes decode to 0 rather than dropping the entry.
+  No known consumer read the field directly.
+- `registry.Live` gains the liveness map and identity fields consumers
+  need: `Status` (busy/idle/waiting; may be absent for sdk-cli),
+  `UpdatedAt`, `StatusUpdatedAt`, `Name`, `Kind`. First consumer:
+  tail-claude-mux's Go backend (liveness probe, thread names).
+- `settings.Introspect(path)` — State + MCP server names + non-empty
+  hook count from a single read; the single-purpose readers remain.
+
 ## v0.2.0 — 2026-07-05
 
 Additive only; no breaking changes.
