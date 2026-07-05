@@ -116,6 +116,33 @@ func TestRegisterHooks_FreshExecForm(t *testing.T) {
 	}
 }
 
+func TestRegisterHooks_AsyncForm(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".claude", "settings.json")
+	async := []HookCommand{{Event: "Stop", Command: "/tcm/scripts/hook.sh", Args: []string{"Stop"}, Async: true}}
+
+	if _, err := RegisterHooks(path, async); err != nil {
+		t.Fatalf("RegisterHooks: %v", err)
+	}
+
+	hooksMap := readHooksMap(t, path)
+	entries := hooksMap["Stop"].([]any)
+	inner := entries[0].(map[string]any)["hooks"].([]any)
+	hm := inner[0].(map[string]any)
+	if hm["async"] != true {
+		t.Errorf("async = %v, want true", hm["async"])
+	}
+
+	// Async does not affect identity: an existing entry with the same
+	// command matches whether or not it carries the flag.
+	added, err := RegisterHooks(path, []HookCommand{{Event: "Stop", Command: "/tcm/scripts/hook.sh", Args: []string{"Stop"}}})
+	if err != nil {
+		t.Fatalf("second RegisterHooks: %v", err)
+	}
+	if len(added) != 0 {
+		t.Errorf("re-register without Async added %v, want none", added)
+	}
+}
+
 func TestRegisterHooks_Idempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".claude", "settings.json")
 

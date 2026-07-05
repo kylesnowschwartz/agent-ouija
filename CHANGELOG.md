@@ -5,6 +5,16 @@ listed here. v1.0.0 comes only after all three consumers (tail-claude,
 tail-claude-hud, gearshifter) have migrated and one real Anthropic
 format-drift cycle has been absorbed without API breakage.
 
+## v0.4.1 — 2026-07-05
+
+Additive only.
+
+- `settings.HookCommand` gains `Async` — writes Claude Code's
+  fire-and-forget hook flag (`"async": true`) in the registered entry.
+  Identity matching is unchanged: async does not distinguish otherwise
+  equal commands. Consumer: tail-claude-mux `tcm-server -register-hooks`
+  (its hooks must never block the agent).
+
 ## v0.4.0 — 2026-07-05
 
 Additive only.

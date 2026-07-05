@@ -15,6 +15,7 @@ type HookCommand struct {
 	Event   string   // e.g. "PermissionRequest", "PostToolUse", "Stop"
 	Command string   // binary name or path
 	Args    []string // exec-form arguments, e.g. ["hook", "cleanup"]
+	Async   bool     // fire-and-forget: Claude Code does not wait for the hook
 }
 
 // legacyString is the shell-string form of the same command, matched for
@@ -171,6 +172,9 @@ func appendHook(hooksMap map[string]any, h HookCommand) {
 	}
 	if len(args) > 0 {
 		inner["args"] = args
+	}
+	if h.Async {
+		inner["async"] = true
 	}
 	entry := map[string]any{
 		"hooks": []any{inner},
