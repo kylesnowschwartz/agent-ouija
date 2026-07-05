@@ -77,6 +77,11 @@ func NonEmptyHookCount(path string) int {
 	if err := json.Unmarshal(data, &sf); err != nil {
 		return 0
 	}
+	return countNonEmptyHooks(sf)
+}
+
+// countNonEmptyHooks counts hook event keys whose value is a non-empty array.
+func countNonEmptyHooks(sf settingsFile) int {
 	count := 0
 	for _, v := range sf.Hooks {
 		var arr []json.RawMessage
@@ -85,4 +90,44 @@ func NonEmptyHookCount(path string) int {
 		}
 	}
 	return count
+}
+
+// Introspection is everything this package decodes from one settings file:
+// the gear State plus the MCP/hook introspection, from a single read. Same
+// rule as everywhere in this package: only these fields are decoded, the
+// raw content is never retained or logged.
+type Introspection struct {
+	State
+	McpServers []string // mcpServers key names, file order not guaranteed
+	HookCount  int      // hook event keys with a non-empty array value
+}
+
+// Introspect reads a settings.json (or .mcp.json) once and returns the
+// combined decode that Read, McpServerNames, and NonEmptyHookCount would
+// produce in three reads. Any failure degrades to the zero Introspection.
+// Callers aggregating across multiple files (global + project + local)
+// dedupe MCP names and sum hook counts themselves.
+func Introspect(path string) Introspection {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return Introspection{}
+	}
+	var s struct {
+		Model  string `json:"model"`
+		Effort string `json:"effortLevel"`
+		Style  string `json:"outputStyle"`
+		settingsFile
+	}
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return Introspection{}
+	}
+	names := make([]string, 0, len(s.McpServers))
+	for name := range s.McpServers {
+		names = append(names, name)
+	}
+	return Introspection{
+		State:      State{Model: s.Model, Effort: s.Effort, Style: s.Style},
+		McpServers: names,
+		HookCount:  countNonEmptyHooks(s.settingsFile),
+	}
 }
