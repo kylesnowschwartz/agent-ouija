@@ -1,9 +1,19 @@
 # Changelog
 
-Versioning: v0.x — breaking changes bump the MINOR version and are
-listed here. v1.0.0 comes only after all three consumers (tail-claude,
-tail-claude-hud, gearshifter) have migrated and one real Anthropic
-format-drift cycle has been absorbed without API breakage.
+Versioning: semver, module-aware. From v1.0.0 the API is stable —
+breaking changes require a /v2 module path. The v1 gate (all consumers
+migrated + one real Anthropic format-drift cycle absorbed without API
+breakage) was satisfied 2026-07-05.
+
+## v1.0.0 — 2026-07-05
+
+The API as of v0.4.2, frozen. No code changes.
+
+Gate evidence: four consumers live on the module (tail-claude v0.16.0,
+tail-claude-hud v0.7.0, gearshifter, tail-claude-mux's Go backend);
+two real Anthropic drift events absorbed — startedAt string→epoch-ms
+(v0.3.0, broke Live.StartedAt, gate stayed open) and forkedFrom
+lineage (v0.4.2, additive, gate closed).
 
 ## v0.4.2 — 2026-07-05
 

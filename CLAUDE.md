@@ -80,9 +80,11 @@ on-disk state and returns data; **consumers decide what the data means**.
 - **What belongs here**: anything derived purely from Claude Code's format
   or filesystem layout. Format drift is ALWAYS fixed here with a fixture,
   never patched in a consumer.
-- **Releases**: v0.x tags only; consumers never pin `@main` outside an
-  active migration. Breaking changes bump the minor and get a CHANGELOG
-  entry. Batch bumps — no per-commit churn across three repos.
+- **Releases**: semver tags; consumers never pin `@main` outside an
+  active migration. v1.0.0 shipped 2026-07-05 — the API is stable, and
+  a breaking change now requires a /v2 module path. Batch bumps — no
+  per-commit churn across consumer repos (Dependabot in each GitHub
+  consumer announces new tags).
 
 ## Schema drift ("up to date in one place")
 
@@ -106,9 +108,9 @@ go test -bench . -benchmem ./claude/transcript/ ./offsetstore/   # perf gates
 CLAUDE_CORPUS_DIR=~/.claude/projects go test ./claude/transcript/ -run TestCorpus -v
 ```
 
-Versioning: v0.x tags; breaking changes bump the minor and get a
-CHANGELOG entry. v1.0.0 only after all three consumers have migrated and
-one real Anthropic format-drift cycle is absorbed without API breakage.
+Versioning: semver, stable since v1.0.0 (2026-07-05; gate evidence in
+CHANGELOG.md). Additions bump the minor; a breaking change requires a
+/v2 module path — prefer absorbing drift additively, as forkedFrom was.
 
 ## Provenance
 
