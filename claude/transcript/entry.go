@@ -1,6 +1,9 @@
 package transcript
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // EntryUsage holds the token counts reported for one API response. Since
 // Claude Code 2.1.19x the usage object can also carry an iterations array:
@@ -38,6 +41,15 @@ type Entry struct {
 	Timestamp   string `json:"timestamp"`
 	IsSidechain bool   `json:"isSidechain"`
 	IsMeta      bool   `json:"isMeta"`
+
+	// Slug is a short human-readable session identifier that Claude Code
+	// attaches to some entry types.
+	Slug string `json:"slug"`
+
+	// CustomTitle is populated on type=custom-title session-metadata
+	// entries (user rename via /rename or --name). These records carry no
+	// uuid — parse them with ParseEntryLenient, not ParseEntry.
+	CustomTitle string `json:"customTitle"`
 	Message     struct {
 		Role       string          `json:"role"`
 		Content    json.RawMessage `json:"content"`
@@ -100,6 +112,11 @@ func (e Entry) ToolUseResultMap() map[string]json.RawMessage {
 
 // ParseEntry parses a single JSONL line into an Entry.
 // Returns false if the JSON is invalid or the entry has no UUID.
+//
+// The UUID guard keeps uuid-less session-metadata records (custom-title,
+// last-prompt, permission-mode, ...) out of the conversation pipeline.
+// Consumers that WANT those records — session-name extraction, statusline
+// scans — must use ParseEntryLenient instead.
 func ParseEntry(line []byte) (Entry, bool) {
 	var e Entry
 	if err := json.Unmarshal(line, &e); err != nil {
@@ -110,4 +127,22 @@ func ParseEntry(line []byte) (Entry, bool) {
 		return Entry{}, false
 	}
 	return e, true
+}
+
+// ParseEntryLenient parses a single JSONL line into an Entry without the
+// UUID requirement. Some entry types (custom-title and the other 2.1.19x+
+// session-metadata records) legitimately omit the uuid field; this is the
+// parse path for consumers that read them.
+func ParseEntryLenient(line []byte) (Entry, bool) {
+	var e Entry
+	if err := json.Unmarshal(line, &e); err != nil {
+		return Entry{}, false
+	}
+	return e, true
+}
+
+// ParsedTimestamp returns the entry's Timestamp as a time.Time.
+// Returns the zero value if the timestamp is missing or unparseable.
+func (e Entry) ParsedTimestamp() time.Time {
+	return ParseTimestamp(e.Timestamp)
 }

@@ -275,3 +275,12 @@ func TestScanLines(t *testing.T) {
 func newLineReaderWithMax(r io.Reader, max int) *Reader {
 	return NewReaderSize(r, max)
 }
+
+// DefaultMaxLineSize is part of the public contract: tail-claude reads
+// transcripts whose single lines reach tens of MiB. Lowering this constant
+// silently drops those lines from transcripts AND search.
+func TestDefaultMaxLineSizeContract(t *testing.T) {
+	if DefaultMaxLineSize != 64*1024*1024 {
+		t.Fatalf("DefaultMaxLineSize = %d, want 64 MiB", DefaultMaxLineSize)
+	}
+}
