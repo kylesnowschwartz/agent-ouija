@@ -15,8 +15,20 @@ import (
 // Root is a Claude Code state directory (conventionally ~/.claude).
 type Root string
 
-// DefaultRoot returns the conventional root, $HOME/.claude.
+// DefaultRoot returns the root Claude Code itself would use:
+// $CLAUDE_CONFIG_DIR when set, otherwise $HOME/.claude.
+//
+// Verified against the Claude Code 2.1.201 bundle: its config-root
+// resolver is CLAUDE_CONFIG_DIR ?? homedir()/.claude, and projects/,
+// sessions/, and settings.json all derive from it — so honoring the
+// override here keeps every consumer reading the directory Claude Code
+// actually writes. One knowing divergence: Claude Code NFC-normalizes
+// the path (JS String.normalize); stdlib-only Go cannot without x/text,
+// which only matters for paths containing decomposed Unicode.
 func DefaultRoot() (Root, error) {
+	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+		return Root(dir), nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -70,6 +82,52 @@ func (r Root) ProjectDirFor(absPath string) string {
 		absPath = resolved
 	}
 	return filepath.Join(r.ProjectsDir(), EncodeProjectPath(absPath))
+}
+
+// SessionTranscriptPath returns the transcript path for a session
+// identified by its working directory and session ID:
+//
+//	{root}/projects/{encoded-cwd}/{sessionID}.jsonl
+//
+// This is the forward construction of the filename convention the rest of
+// this module parses (discover, agents, DebugLogPath all trim ".jsonl").
+// The natural input is a registry entry: registry.Resolve returns the
+// (Cwd, SessionID) pair this completes. The path is where Claude Code
+// writes the transcript; the file may not exist yet for a brand-new
+// session.
+func (r Root) SessionTranscriptPath(cwd, sessionID string) string {
+	return filepath.Join(r.ProjectDirFor(cwd), sessionID+".jsonl")
+}
+
+// NewestTranscript returns the most recently modified session transcript
+// (*.jsonl, non-recursive) in a project directory, conventionally one
+// returned by ProjectDirFor. Statusline-style consumers use this to find
+// "the current session" when nothing hands them a transcript path.
+// Returns os.ErrNotExist when the directory holds no transcripts.
+func NewestTranscript(projectDir string) (string, error) {
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		return "", err
+	}
+	var newest string
+	var newestTime int64
+	for _, de := range entries {
+		if de.IsDir() || !strings.HasSuffix(de.Name(), ".jsonl") {
+			continue
+		}
+		info, err := de.Info()
+		if err != nil {
+			continue
+		}
+		if mt := info.ModTime().UnixNano(); mt > newestTime {
+			newestTime = mt
+			newest = filepath.Join(projectDir, de.Name())
+		}
+	}
+	if newest == "" {
+		return "", os.ErrNotExist
+	}
+	return newest, nil
 }
 
 // ListProjectDirs returns every Claude Code project directory under

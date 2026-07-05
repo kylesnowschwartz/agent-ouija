@@ -5,6 +5,22 @@ listed here. v1.0.0 comes only after all three consumers (tail-claude,
 tail-claude-hud, gearshifter) have migrated and one real Anthropic
 format-drift cycle has been absorbed without API breakage.
 
+## v0.2.0 — 2026-07-05
+
+Additive only; no breaking changes.
+
+- `claudedir.DefaultRoot` honors `CLAUDE_CONFIG_DIR` before falling back
+  to `$HOME/.claude`, matching Claude Code's own config-root resolver
+  (verified against the 2.1.201 bundle: projects/, sessions/, and
+  settings.json all derive from it). Consumers reading through
+  DefaultRoot now follow the override automatically.
+- `Root.SessionTranscriptPath(cwd, sessionID)` — forward constructor for
+  `{root}/projects/{encoded-cwd}/{id}.jsonl`; completes the (Cwd,
+  SessionID) pair `registry.Resolve` returns.
+- `claudedir.NewestTranscript(projectDir)` — most recently modified
+  transcript in a project dir (tail-claude-hud's current-session
+  lookup, moved library-side).
+
 ## v0.1.0 — 2026-07-05
 
 Initial extraction. Bootstrapped from tail-claude@e71144c `parser/`
