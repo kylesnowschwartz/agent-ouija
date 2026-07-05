@@ -5,6 +5,14 @@ listed here. v1.0.0 comes only after all three consumers (tail-claude,
 tail-claude-hud, gearshifter) have migrated and one real Anthropic
 format-drift cycle has been absorbed without API breakage.
 
+## v0.4.0 — 2026-07-05
+
+Additive only.
+
+- `registry.Live` gains `Agent` — the active subagent name while a
+  Task tool call runs (the `agent` key in sessions/*.json). Consumer:
+  tail-claude-mux Go backend (AgentEvent.subagent).
+
 ## v0.3.0 — 2026-07-05
 
 First real Anthropic format-drift event, absorbed library-side with a

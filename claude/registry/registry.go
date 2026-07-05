@@ -66,7 +66,8 @@ func (e EpochMS) Time() time.Time { return time.UnixMilli(int64(e)) }
 // entrypoints (Kind "sdk-cli") may omit status entirely — treat an empty
 // Status as "unknown", not idle. Name is the session's display name when
 // one has been set; Kind is the entrypoint kind ("interactive",
-// "sdk-cli", ...).
+// "sdk-cli", ...). Agent is the active subagent name while a Task tool
+// call runs (empty when the parent thread is in control).
 type Live struct {
 	PID             int     `json:"pid"`
 	SessionID       string  `json:"sessionId"`
@@ -77,6 +78,7 @@ type Live struct {
 	Status          string  `json:"status"`
 	UpdatedAt       EpochMS `json:"updatedAt"`
 	StatusUpdatedAt EpochMS `json:"statusUpdatedAt"`
+	Agent           string  `json:"agent"`
 }
 
 // Alive reports whether the entry's process still exists (signal 0 probe).

@@ -85,7 +85,7 @@ func TestRead(t *testing.T) {
 // decoded). Dependent consumers: gearshifter (pane→session), tcm
 // (liveness probe).
 func TestRead_CurrentFormatFixture(t *testing.T) {
-	const fixture = `{"pid":12839,"sessionId":"11111111-2222-4333-b444-555555555555","cwd":"/Users/u/Code/proj","startedAt":1782774895166,"procStart":"Mon Jun 29 23:14:54 2026","version":"2.1.195","peerProtocol":1,"kind":"interactive","entrypoint":"cli","name":"example-session","updatedAt":1783047882193,"status":"idle","statusUpdatedAt":1783047882193}`
+	const fixture = `{"pid":12839,"sessionId":"11111111-2222-4333-b444-555555555555","cwd":"/Users/u/Code/proj","startedAt":1782774895166,"procStart":"Mon Jun 29 23:14:54 2026","version":"2.1.195","peerProtocol":1,"kind":"interactive","entrypoint":"cli","name":"example-session","updatedAt":1783047882193,"status":"idle","statusUpdatedAt":1783047882193,"agent":"rb-orchestrator"}`
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "12839.json"), []byte(fixture), 0o644); err != nil {
 		t.Fatal(err)
@@ -105,6 +105,7 @@ func TestRead_CurrentFormatFixture(t *testing.T) {
 		Status:          "idle",
 		UpdatedAt:       1783047882193,
 		StatusUpdatedAt: 1783047882193,
+		Agent:           "rb-orchestrator",
 	}
 	if e != want {
 		t.Errorf("decoded entry:\n got %+v\nwant %+v", e, want)
