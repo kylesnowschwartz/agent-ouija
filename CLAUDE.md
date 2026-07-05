@@ -63,6 +63,27 @@ BuildChunks` pipeline is never squeezed through an interface.
 - **Field docs live in `claude/transcript/doc.go`** — the codified
   tolerant-decoding rules. Read it before touching Entry or Classify.
 
+## Consumer contract (the line)
+
+The dependency is strictly one-way: this library reads Claude Code's
+on-disk state and returns data; **consumers decide what the data means**.
+
+- **Never model a consumer here.** No imports of consumer repos, no types
+  or fields that exist only to serve one tool's presentation. Naming a
+  consumer in a doc comment to explain a contract (see the
+  partial-last-line rules) is fine; encoding its policy is not.
+- **Policy that stays app-side, by prior decision** — reject upstreaming
+  attempts: tail-claude's rendering/watchers; the HUD's color assignment,
+  status/duration heuristics, display names, `ContextPercent`, and
+  snapshot `SchemaVersion`; gearshifter's settings-vs-transcript mtime
+  arbitration.
+- **What belongs here**: anything derived purely from Claude Code's format
+  or filesystem layout. Format drift is ALWAYS fixed here with a fixture,
+  never patched in a consumer.
+- **Releases**: v0.x tags only; consumers never pin `@main` outside an
+  active migration. Breaking changes bump the minor and get a CHANGELOG
+  entry. Batch bumps — no per-commit churn across three repos.
+
 ## Schema drift ("up to date in one place")
 
 - `format_drift_test.go` + fixtures run in CI.
