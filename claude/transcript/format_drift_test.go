@@ -167,3 +167,34 @@ func TestClassify_UsageWithoutIterationsUnchanged(t *testing.T) {
 		t.Errorf("TotalTokens = %d, want 185", ai.Usage.TotalTokens())
 	}
 }
+
+// Claude Code 2.1.201 stamps every entry of a forked session with
+// forkedFrom lineage ({sessionId, messageUuid}) — on user, assistant,
+// system, AND attachment types. Fixture sanitized from a live 2.1.201
+// transcript; found by the corpus gate 2026-07-05.
+func TestParseEntry_ForkedFrom(t *testing.T) {
+	line := `{"type":"user","uuid":"11111111-1111-1111-1111-111111111111","timestamp":"2026-07-05T09:00:00.000Z","sessionId":"331badfb-cd6f-44c2-b04b-356654a0bba6","version":"2.1.201","isSidechain":false,"userType":"external","cwd":"/tmp/p","gitBranch":"main","forkedFrom":{"sessionId":"8a01f462-73b1-497f-a77b-b42eb41f2de2","messageUuid":"006976ab-4078-427e-855f-17ce19dc2be6"},"message":{"role":"user","content":"hi"}}`
+
+	e, ok := transcript.ParseEntry([]byte(line))
+	if !ok {
+		t.Fatal("ParseEntry rejected the forked entry")
+	}
+	if e.ForkedFrom == nil {
+		t.Fatal("ForkedFrom = nil, want lineage")
+	}
+	if e.ForkedFrom.SessionID != "8a01f462-73b1-497f-a77b-b42eb41f2de2" {
+		t.Errorf("SessionID = %q", e.ForkedFrom.SessionID)
+	}
+	if e.ForkedFrom.MessageUUID != "006976ab-4078-427e-855f-17ce19dc2be6" {
+		t.Errorf("MessageUUID = %q", e.ForkedFrom.MessageUUID)
+	}
+
+	unforked := `{"type":"user","uuid":"22222222-2222-2222-2222-222222222222","timestamp":"2026-07-05T09:00:01.000Z","message":{"role":"user","content":"hi"}}`
+	e2, ok := transcript.ParseEntry([]byte(unforked))
+	if !ok {
+		t.Fatal("ParseEntry rejected the unforked entry")
+	}
+	if e2.ForkedFrom != nil {
+		t.Errorf("ForkedFrom = %+v, want nil on an unforked entry", e2.ForkedFrom)
+	}
+}

@@ -44,6 +44,9 @@
 //   - Oversized lines are skipped, never fatal: the jsonl reader's 64 MiB
 //     default cap accommodates inline images and giant pre-2.1.19x tool
 //     results; one huge line must never hide the rest of the session.
+//   - forkedFrom (2.1.201+) stamps EVERY entry of a forked session with
+//     {sessionId, messageUuid} lineage — user, assistant, system, and
+//     attachment types alike. Entry.ForkedFrom is nil on non-forks.
 //
 // # Classify is destructive — ExtractContentBlocks is not
 //

@@ -32,6 +32,13 @@ func (u EntryUsage) ContextUsage() EntryUsage {
 	return u
 }
 
+// ForkedFrom identifies the session and message a forked session was
+// branched from (Claude Code 2.1.201+).
+type ForkedFrom struct {
+	SessionID   string `json:"sessionId"`
+	MessageUUID string `json:"messageUuid"`
+}
+
 // Entry represents a raw JSONL line from a Claude Code session file.
 // Fields map directly to the on-disk format at ~/.claude/projects/{project}/{session}.jsonl.
 type Entry struct {
@@ -83,6 +90,12 @@ type Entry struct {
 	// the compression title in Summary rather than message.content.
 	LeafUUID string `json:"leafUuid"`
 	Summary  string `json:"summary"`
+
+	// ForkedFrom is the fork-lineage stamp Claude Code 2.1.201+ writes on
+	// every entry of a session forked from another session (user,
+	// assistant, system, and attachment types alike). Nil when the session
+	// is not a fork.
+	ForkedFrom *ForkedFrom `json:"forkedFrom"`
 
 	// Attachment payload for type=attachment entries. Claude Code 2.1+ emits
 	// these for various UI side-events; we currently surface only

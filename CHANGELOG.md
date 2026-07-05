@@ -5,6 +5,17 @@ listed here. v1.0.0 comes only after all three consumers (tail-claude,
 tail-claude-hud, gearshifter) have migrated and one real Anthropic
 format-drift cycle has been absorbed without API breakage.
 
+## v0.4.2 — 2026-07-05
+
+Additive only — the second real Anthropic format-drift event, absorbed
+without API breakage. This satisfies the v1.0.0 gate's drift criterion.
+
+- `transcript.Entry` gains `ForkedFrom *ForkedFrom` ({sessionId,
+  messageUuid}): Claude Code 2.1.201 stamps every entry of a forked
+  session with fork lineage, on user/assistant/system/attachment types
+  alike. Nil on non-forks. Found by the gated corpus run; fixture in
+  format_drift_test.go; corpus allowlist extended.
+
 ## v0.4.1 — 2026-07-05
 
 Additive only.
