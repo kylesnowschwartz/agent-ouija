@@ -223,7 +223,7 @@ func writeSettingsMap(path string, settings map[string]any) error {
 		return fmt.Errorf("write %s: %w", tmp, err)
 	}
 	if err := os.Rename(tmp, target); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp) // best-effort cleanup; the rename failure is the error that matters
 		return fmt.Errorf("rename %s: %w", target, err)
 	}
 	return nil
