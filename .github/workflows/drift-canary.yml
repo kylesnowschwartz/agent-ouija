@@ -28,6 +28,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false # zero-dep module: no go.sum to key a cache on
 
       - name: Require API key secret
         run: |

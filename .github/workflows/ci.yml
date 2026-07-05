@@ -17,6 +17,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false # zero-dep module: no go.sum to key a cache on
 
       - name: gofmt
         run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
@@ -46,6 +47,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false # zero-dep module: no go.sum to key a cache on
       - uses: golangci/golangci-lint-action@v8
         with:
           version: latest
