@@ -41,6 +41,20 @@ func TestLastAssistantModel(t *testing.T) {
 	}
 }
 
+// The scan decodes a minimal {type, message.model} struct on purpose:
+// format drift in an unrelated modeled field (here isMeta as a string and
+// stop_reason as an object, both wrong-typed for Entry) must never reject
+// the line and silently drop the model — gearshifter's gear would fall
+// back to the global settings model with no error.
+func TestLastAssistantModel_ToleratesDriftInUnrelatedFields(t *testing.T) {
+	path := writeSession(t,
+		`{"type":"assistant","isMeta":"yes","stop_reason":{"weird":true},"message":{"model":"claude-opus-4-8"}}`,
+	)
+	if m, _ := transcript.LastAssistantModel(path); m != "claude-opus-4-8" {
+		t.Errorf("model = %q, want claude-opus-4-8 despite wrong-typed unrelated fields", m)
+	}
+}
+
 func TestLastAssistantModel_NoAssistantEntries(t *testing.T) {
 	path := writeSession(t, `{"type":"user","message":{"content":"hi"}}`)
 	if m, _ := transcript.LastAssistantModel(path); m != "" {

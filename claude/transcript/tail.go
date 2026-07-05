@@ -2,6 +2,7 @@ package transcript
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"time"
 
@@ -35,31 +36,49 @@ func ScanTailEntries(path string, maxBytes int64, fn func(Entry) bool) error {
 }
 
 // LastAssistantModel scans the session transcript bottom-up for the last
-// assistant entry's message.model, returning it with the transcript's
-// mtime, or ("", zero time) when unresolvable.
+// assistant entry's message.model (the ccusage statusline pattern),
+// returning it with the transcript's mtime, or ("", zero time) when
+// unresolvable.
 //
 // Contract (pinned to gearshifter's semantics — do not change):
 //   - only the last 256 KiB are read, so huge transcripts stay cheap;
 //   - "<synthetic>" models are skipped and the scan CONTINUES to the next
 //     older assistant entry (a synthetic entry is often the newest one);
 //   - the returned mtime is the transcript file's, letting callers
-//     arbitrate freshness against settings.json (the fresher file wins).
+//     arbitrate freshness against settings.json (the fresher file wins) —
+//     the mtime and the scanned window come from ONE Stat so the pair is
+//     always coherent;
+//   - lines decode through a minimal {type, message.model} struct, NOT the
+//     full Entry: format drift in an unrelated modeled field must never
+//     reject the line and silently drop the model.
 func LastAssistantModel(path string) (model string, modTime time.Time) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return "", time.Time{}
 	}
-	lines, err := jsonl.TailLines(path, tailScanBytes)
+	f, err := os.Open(path)
 	if err != nil {
 		return "", time.Time{}
 	}
+	defer f.Close()
+	offset := max(0, info.Size()-tailScanBytes)
+	buf := make([]byte, info.Size()-offset)
+	if _, err := f.ReadAt(buf, offset); err != nil {
+		return "", time.Time{}
+	}
+	lines := bytes.Split(buf, []byte("\n"))
 	for i := len(lines) - 1; i >= 0; i-- {
 		// Cheap pre-filter: most lines carry no model field at all.
 		if !bytes.Contains(lines[i], []byte(`"model"`)) {
 			continue
 		}
-		entry, ok := ParseEntryLenient(lines[i])
-		if !ok {
+		var entry struct {
+			Type    string `json:"type"`
+			Message struct {
+				Model string `json:"model"`
+			} `json:"message"`
+		}
+		if err := json.Unmarshal(lines[i], &entry); err != nil {
 			continue // first line of the tail window may be truncated
 		}
 		if entry.Type == "assistant" && entry.Message.Model != "" && entry.Message.Model != "<synthetic>" {
