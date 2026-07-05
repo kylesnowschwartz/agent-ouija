@@ -10,17 +10,19 @@ import (
 	"os"
 )
 
-// State is the global gear state persisted by /model and /effort.
+// State is the global gear state persisted by /model, /effort, and
+// /output-style.
 type State struct {
 	Model  string // "model" key
 	Effort string // "effortLevel" key
+	Style  string // "outputStyle" key
 }
 
-// Read returns the model and effort level from a settings.json file.
-// /model and /effort persist to these keys the moment they change, so this
-// is Claude Code's own truth rather than a sniffed approximation. Any
-// failure (missing file, invalid JSON) degrades to the zero State — callers
-// render stateless, never error.
+// Read returns the model, effort level, and output style from a
+// settings.json file. /model, /effort, and /output-style persist to these
+// keys the moment they change, so this is Claude Code's own truth rather
+// than a sniffed approximation. Any failure (missing file, invalid JSON)
+// degrades to the zero State — callers render stateless, never error.
 func Read(path string) State {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -29,11 +31,12 @@ func Read(path string) State {
 	var s struct {
 		Model  string `json:"model"`
 		Effort string `json:"effortLevel"`
+		Style  string `json:"outputStyle"`
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return State{}
 	}
-	return State{Model: s.Model, Effort: s.Effort}
+	return State{Model: s.Model, Effort: s.Effort, Style: s.Style}
 }
 
 // settingsFile is a minimal struct for introspection reads. The Hooks field

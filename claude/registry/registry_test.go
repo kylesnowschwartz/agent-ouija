@@ -42,6 +42,13 @@ func TestResolve(t *testing.T) {
 	if _, ok := Resolve(entries, nil, "/nowhere"); ok {
 		t.Error("no match must report not-found")
 	}
+	// A registry entry with no startedAt is still a live cwd match — the
+	// first live match must win even with an empty startedAt ("" > "" is
+	// false, so a bare > comparison never selects it).
+	bare := []Live{{PID: alive, SessionID: "no-started-at", Cwd: "/c"}}
+	if e, ok := Resolve(bare, nil, "/c"); !ok || e.SessionID != "no-started-at" {
+		t.Errorf("empty startedAt: got %v %v, want no-started-at", e.SessionID, ok)
+	}
 }
 
 func TestRead(t *testing.T) {

@@ -21,11 +21,11 @@ func writeFile(t *testing.T, path, content string) {
 
 func TestRead(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
-	writeFile(t, path, `{"model":"claude-opus-4-8","effortLevel":"high","env":{"SECRET":"x"}}`)
+	writeFile(t, path, `{"model":"claude-opus-4-8","effortLevel":"high","outputStyle":"butterfield","env":{"SECRET":"x"}}`)
 
 	got := Read(path)
-	if got.Model != "claude-opus-4-8" || got.Effort != "high" {
-		t.Errorf("Read = %+v, want model claude-opus-4-8, effort high", got)
+	if got.Model != "claude-opus-4-8" || got.Effort != "high" || got.Style != "butterfield" {
+		t.Errorf("Read = %+v, want model claude-opus-4-8, effort high, style butterfield", got)
 	}
 }
 

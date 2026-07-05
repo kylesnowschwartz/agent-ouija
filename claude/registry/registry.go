@@ -115,8 +115,8 @@ func Resolve(entries []Live, paneTree map[int]bool, paneCwd string) (Live, bool)
 		if paneTree[e.PID] {
 			return e, true
 		}
-		if e.Cwd == paneCwd && e.StartedAt > byCwd.StartedAt {
-			byCwd = e
+		if e.Cwd == paneCwd && (byCwd.SessionID == "" || e.StartedAt > byCwd.StartedAt) {
+			byCwd = e // first live match wins even with an empty startedAt
 		}
 	}
 	return byCwd, byCwd.SessionID != ""
