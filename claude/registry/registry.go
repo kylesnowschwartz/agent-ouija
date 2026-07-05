@@ -2,9 +2,14 @@
 // ({root}/sessions/*.json) and resolves which session belongs to a given
 // terminal pane.
 //
-// Mechanism (verified against Claude Code 2.1.201): each running session
-// writes a JSON file with its pid, sessionId, cwd, and startedAt. Files
-// linger after exit, so entries must be liveness-checked before use.
+// Mechanism (verified against Claude Code 2.1.195/2.1.201): each running
+// session writes a JSON file with its pid, sessionId, cwd, startedAt, and
+// a liveness map (status/updatedAt/statusUpdatedAt). Files linger after
+// exit, so entries must be liveness-checked before use.
+//
+// Format drift, absorbed 2026-07-05: startedAt was once an RFC3339 string
+// and is an epoch-milliseconds number on current builds. EpochMS accepts
+// both; a strict string decode made the whole registry invisible.
 //
 // Ported from gearshifter@e718c8e internal/agent/claude/session.go with the
 // process tree made injectable for tests.
@@ -18,15 +23,60 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
+
+// EpochMS is a millisecond Unix timestamp tolerant of every encoding the
+// registry has used: a JSON number (current builds), an RFC3339 string or
+// numeric string (older builds). Unrecognized shapes decode to 0 rather
+// than failing the whole entry — a timestamp is never load-bearing enough
+// to hide a session.
+type EpochMS int64
+
+// UnmarshalJSON implements the tolerant decode described on the type.
+func (e *EpochMS) UnmarshalJSON(data []byte) error {
+	*e = 0
+	s := strings.TrimSpace(string(data))
+	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+		*e = EpochMS(n)
+		return nil
+	}
+	var str string
+	if json.Unmarshal(data, &str) != nil {
+		return nil
+	}
+	if n, err := strconv.ParseInt(str, 10, 64); err == nil {
+		*e = EpochMS(n)
+	} else if t, err := time.Parse(time.RFC3339, str); err == nil {
+		*e = EpochMS(t.UnixMilli())
+	}
+	return nil
+}
+
+// Time returns the timestamp as a time.Time (zero EpochMS → Unix epoch;
+// check for 0 before formatting if "unknown" must render differently).
+func (e EpochMS) Time() time.Time { return time.UnixMilli(int64(e)) }
 
 // Live is one file of Claude Code's live-session registry. Only the fields
 // consumers need are decoded.
+//
+// Status/UpdatedAt/StatusUpdatedAt are the session's self-reported
+// liveness map: observed status values are "busy", "idle", and "waiting",
+// refreshed while the process runs. Files written by non-interactive
+// entrypoints (Kind "sdk-cli") may omit status entirely — treat an empty
+// Status as "unknown", not idle. Name is the session's display name when
+// one has been set; Kind is the entrypoint kind ("interactive",
+// "sdk-cli", ...).
 type Live struct {
-	PID       int    `json:"pid"`
-	SessionID string `json:"sessionId"`
-	Cwd       string `json:"cwd"`
-	StartedAt string `json:"startedAt"`
+	PID             int     `json:"pid"`
+	SessionID       string  `json:"sessionId"`
+	Cwd             string  `json:"cwd"`
+	StartedAt       EpochMS `json:"startedAt"`
+	Name            string  `json:"name"`
+	Kind            string  `json:"kind"`
+	Status          string  `json:"status"`
+	UpdatedAt       EpochMS `json:"updatedAt"`
+	StatusUpdatedAt EpochMS `json:"statusUpdatedAt"`
 }
 
 // Alive reports whether the entry's process still exists (signal 0 probe).
@@ -116,7 +166,7 @@ func Resolve(entries []Live, paneTree map[int]bool, paneCwd string) (Live, bool)
 			return e, true
 		}
 		if e.Cwd == paneCwd && (byCwd.SessionID == "" || e.StartedAt > byCwd.StartedAt) {
-			byCwd = e // first live match wins even with an empty startedAt
+			byCwd = e // first live match wins even with a zero startedAt
 		}
 	}
 	return byCwd, byCwd.SessionID != ""
