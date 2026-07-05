@@ -31,6 +31,11 @@ type SubagentMeta struct {
 // invokes this every ~300ms). Status/duration heuristics built on ModTime
 // stay caller-side.
 //
+// Ordering is part of the contract: results come back in directory-name
+// (lexical) order, stable across calls for an unchanged directory.
+// tail-claude-hud assigns display colors by slice position, so a reorder
+// would visibly reshuffle agent colors between ticks.
+//
 // Ported from tail-claude-hud@f6959f1 internal/gather/gather.go
 // discoverSubagents, with the display-name and status policy removed.
 func ScanSubagentMeta(sessionPath string) []SubagentMeta {

@@ -192,8 +192,23 @@ func appendHook(hooksMap map[string]any, h HookCommand) {
 // file + rename) with readable formatting. settings.json holds secrets and
 // is read concurrently by Claude Code — a partial write must never be
 // observable.
+//
+// The rename targets the symlink-resolved path (a dotfiles-managed
+// settings.json must keep pointing at its repo copy, and the repo copy is
+// what must change), and the replacement file keeps the existing file's
+// permissions (a hardened 0600 must not silently widen to 0644).
 func writeSettingsMap(path string, settings map[string]any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	target := path
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		target = resolved
+	}
+
+	mode := os.FileMode(0o644)
+	if info, err := os.Stat(target); err == nil {
+		mode = info.Mode().Perm()
+	}
+
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return fmt.Errorf("create settings directory: %w", err)
 	}
 
@@ -203,12 +218,13 @@ func writeSettingsMap(path string, settings map[string]any) error {
 	}
 	data = append(data, '\n')
 
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	tmp := target + ".tmp"
+	if err := os.WriteFile(tmp, data, mode); err != nil {
 		return fmt.Errorf("write %s: %w", tmp, err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		return fmt.Errorf("rename %s: %w", path, err)
+	if err := os.Rename(tmp, target); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("rename %s: %w", target, err)
 	}
 	return nil
 }

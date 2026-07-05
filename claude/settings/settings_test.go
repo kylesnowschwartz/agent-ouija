@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -175,5 +176,64 @@ func TestRegisterHooks_PreservesUnrelatedSettings(t *testing.T) {
 	// No temp file left behind (atomic write).
 	if _, err := os.Stat(path + ".tmp"); err == nil {
 		t.Error("temp file persists after RegisterHooks")
+	}
+}
+
+func TestRegisterHooks_PreservesFileMode(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), ".claude")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := RegisterHooks(path, []HookCommand{{Event: "Stop", Command: "x", Args: []string{"hook", "cleanup"}}}); err != nil {
+		t.Fatalf("RegisterHooks: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("settings.json mode = %o after rewrite, want 600 preserved (file holds secrets)", perm)
+	}
+}
+
+func TestRegisterHooks_WritesThroughSymlink(t *testing.T) {
+	tmp := t.TempDir()
+	realDir := filepath.Join(tmp, "dotfiles")
+	linkDir := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(realDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(linkDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	realPath := filepath.Join(realDir, "settings.json")
+	linkPath := filepath.Join(linkDir, "settings.json")
+	if err := os.WriteFile(realPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(realPath, linkPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := RegisterHooks(linkPath, []HookCommand{{Event: "Stop", Command: "x", Args: []string{"hook", "cleanup"}}}); err != nil {
+		t.Fatalf("RegisterHooks: %v", err)
+	}
+
+	// The link must survive and the dotfiles target must hold the change.
+	if info, err := os.Lstat(linkPath); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("settings.json symlink was replaced by a regular file (dotfiles setups break)")
+	}
+	data, err := os.ReadFile(realPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"Stop"`) {
+		t.Errorf("symlink target does not contain the registered hook: %s", data)
 	}
 }
