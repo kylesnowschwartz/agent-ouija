@@ -29,7 +29,7 @@ BuildChunks` pipeline is never squeezed through an interface.
 | `offsetstore` | Disk-persisted incremental-read offsets + opaque versioned snapshot (HUD's tick model) |
 | `gitroot` | Git main-worktree root resolution without the git binary |
 | `internal/pat` | Shared regexes/tags (teammate XML, command tags, system-output tags) |
-| `claude` | `claude.Provider` adapter implementing the core interfaces |
+| `claude` | `claude.Provider` adapter implementing the core interfaces; the ONE bridge across claude subpackages: `NameResolver`/`FindNameMatches` display-name arbitration (transcript title vs registry name) |
 | `claude/claudedir` | `Root` type: path encoding (`EncodeProjectPath`), `ProjectDirFor`, `ListProjectDirs`, `SettingsPath`, `SessionsDir`, `DebugLogPath` |
 | `claude/transcript` | Lossless pipeline: `Entry`/`ParseEntry`/`ParseEntryLenient`, `Classify`, `BuildChunks`, `ExtractContentBlocks`, `ReadSession(Incremental)`, tail scans (`LastAssistantModel`), ongoing heuristics. Invariants: see `doc.go` |
 | `claude/discover` | Session discovery: `SessionInfo`, `DiscoverProjectSessions`, titles, cache, date grouping, `ProjectName` |
@@ -74,9 +74,11 @@ on-disk state and returns data; **consumers decide what the data means**.
   partial-last-line rules) is fine; encoding its policy is not.
 - **Policy that stays app-side, by prior decision** — reject upstreaming
   attempts: tail-claude's rendering/watchers; the HUD's color assignment,
-  status/duration heuristics, display names, `ContextPercent`, and
-  snapshot `SchemaVersion`; gearshifter's settings-vs-transcript mtime
-  arbitration.
+  status/duration heuristics, display-name *presentation* (labels,
+  truncation, coloring), `ContextPercent`, and snapshot `SchemaVersion`;
+  gearshifter's settings-vs-transcript mtime arbitration. Display-name
+  *source arbitration* (transcript title vs registry name, the flush
+  re-stamp) is library-side: `claude.NameResolver` (issue #1).
 - **What belongs here**: anything derived purely from Claude Code's format
   or filesystem layout. Format drift is ALWAYS fixed here with a fixture,
   never patched in a consumer.

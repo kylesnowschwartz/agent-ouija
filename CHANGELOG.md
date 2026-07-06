@@ -5,6 +5,31 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.2.0 — 2026-07-06
+
+Additive only.
+
+- `claude.NameResolver` (`NewNameResolver`, `DisplayName`, `Apply`) —
+  display-name arbitration between the transcript title and the
+  live-session registry name: custom title > AI title > registry name >
+  stamped title > "". Why: launcher-started sessions get a custom-title
+  record re-stamped with the project directory name on every transcript
+  flush (verified against Claude Code 2.1.195), so under
+  last-occurrence-wins a /rename survives only in the registry; and
+  auto-named sessions (registry `{dir}-{2hex}`, 2.1.196+) carry no
+  transcript title records at all. Entries are deliberately NOT
+  liveness-filtered — a lingering registry file is the only surviving
+  record of a /rename (regression-tested). Fixture:
+  `claude/testdata/restamped_title.jsonl`. Ported from tail-claude's
+  `registry_names.go`. Issue #1.
+- `claude.FindNameMatches(query, root, entries)` — the registry-name
+  counterpart to `discover.FindTitleMatches` (case-insensitive, exact
+  beats substring, newest-first, missing transcripts skipped, stale
+  duplicate entries resolved before matching).
+- `discover.MergeTitleRefs` / `discover.PreferExact` — combine match
+  results across the two sources and restore exact-beats-substring
+  across the merge.
+
 ## v1.1.0 — 2026-07-05
 
 Additive only.

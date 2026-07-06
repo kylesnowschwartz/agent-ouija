@@ -190,6 +190,42 @@ func FindTitleMatches(query string, projectDirs []string) ([]SessionTitleRef, er
 	return partial, nil
 }
 
+// MergeTitleRefs appends extra onto base, dropping refs whose Path is
+// already present. A session can match a name query from more than one
+// source — its transcript title (FindTitleMatches) and its registry name
+// (claude.FindNameMatches) — and must appear once.
+func MergeTitleRefs(base, extra []SessionTitleRef) []SessionTitleRef {
+	seen := make(map[string]struct{}, len(base))
+	for _, r := range base {
+		seen[r.Path] = struct{}{}
+	}
+	for _, r := range extra {
+		if _, dup := seen[r.Path]; dup {
+			continue
+		}
+		seen[r.Path] = struct{}{}
+		base = append(base, r)
+	}
+	return base
+}
+
+// PreferExact narrows refs to case-insensitive exact title matches when
+// any exist. FindTitleMatches applies exact-beats-substring within its
+// own results; after merging refs from a second source, this restores the
+// rule across both.
+func PreferExact(refs []SessionTitleRef, query string) []SessionTitleRef {
+	var exact []SessionTitleRef
+	for _, r := range refs {
+		if strings.EqualFold(r.Title, query) {
+			exact = append(exact, r)
+		}
+	}
+	if len(exact) > 0 {
+		return exact
+	}
+	return refs
+}
+
 // DiscoverAllProjectSessions finds sessions across multiple project directories
 // (main + worktree dirs). Calls DiscoverProjectSessions on each, merges results,
 // and sorts by ModTime descending. Missing directories are silently skipped.

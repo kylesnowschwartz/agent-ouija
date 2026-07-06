@@ -250,3 +250,45 @@ func TestFindTitleMatches(t *testing.T) {
 		}
 	})
 }
+
+func TestMergeTitleRefs(t *testing.T) {
+	base := []discover.SessionTitleRef{
+		{Path: "/p/a.jsonl", Title: "alpha"},
+		{Path: "/p/b.jsonl", Title: "beta"},
+	}
+	extra := []discover.SessionTitleRef{
+		{Path: "/p/b.jsonl", Title: "beta-from-registry"}, // duplicate path — dropped
+		{Path: "/p/c.jsonl", Title: "gamma"},
+	}
+	got := discover.MergeTitleRefs(base, extra)
+	if len(got) != 3 {
+		t.Fatalf("len(got) = %d, want 3 (duplicate path deduped)", len(got))
+	}
+	if got[1].Title != "beta" {
+		t.Errorf("got[1].Title = %q, want the base ref to win the dedup", got[1].Title)
+	}
+	if got[2].Path != "/p/c.jsonl" {
+		t.Errorf("got[2].Path = %q, want /p/c.jsonl appended", got[2].Path)
+	}
+
+	if got := discover.MergeTitleRefs(nil, extra); len(got) != 2 {
+		t.Errorf("nil base: len(got) = %d, want 2", len(got))
+	}
+	if got := discover.MergeTitleRefs(base, nil); len(got) != 2 {
+		t.Errorf("nil extra: len(got) = %d, want 2", len(got))
+	}
+}
+
+func TestPreferExact(t *testing.T) {
+	refs := []discover.SessionTitleRef{
+		{Path: "/p/a.jsonl", Title: "dependabot-manager-okr"},
+		{Path: "/p/b.jsonl", Title: "dependabot-manager-okr-v2"},
+	}
+	got := discover.PreferExact(refs, "Dependabot-Manager-OKR")
+	if len(got) != 1 || got[0].Path != "/p/a.jsonl" {
+		t.Errorf("got %+v, want only the case-insensitive exact match", got)
+	}
+	if got := discover.PreferExact(refs, "dependabot"); len(got) != 2 {
+		t.Errorf("no exact hit should pass refs through, got %+v", got)
+	}
+}
