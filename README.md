@@ -43,7 +43,9 @@ the library reads.
 **Provider-neutral core** (package `sessions`, module root) — for
 consumers that enumerate sessions across agent products: `Provider`,
 `SessionRef`, `Query`, `Registry`, and optional capabilities probed by
-type assertion (`LiveTracker`). Claude Code is just one provider.
+type assertion (`LiveTracker`). Claude Code and Codex CLI are its two
+providers today; more slot in without forcing either one's fidelity
+through the neutral interface.
 
 **Lossless Claude subtree** (`claude/...`) — for consumers that know
 they're reading Claude Code state and want full fidelity. The parsing
@@ -63,6 +65,16 @@ pipeline is never squeezed through an interface.
 | Incremental offsets across process restarts | `offsetstore` |
 | Raw JSONL primitives, bounded tail reads | `jsonl` |
 | Git main-worktree resolution | `gitroot` |
+
+**Codex subtree** (`codex/...`) — the Codex CLI counterpart, for
+consumers reading `$CODEX_HOME` rollout transcripts.
+
+| You need | Import |
+|---|---|
+| Rollout entries + trailing status/cwd fold | `codex/rollout` |
+| Find rollout files, resolve thread names | `codex/discover` |
+| `$CODEX_HOME` path conventions | `codex/codexdir` |
+| `sessions.Provider` adapter | `codex` |
 
 ## Design commitments
 
