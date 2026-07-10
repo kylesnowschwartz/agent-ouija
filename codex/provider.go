@@ -10,6 +10,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	sessions "github.com/kylesnowschwartz/agent-ouija"
 	"github.com/kylesnowschwartz/agent-ouija/codex/codexdir"
@@ -72,6 +73,13 @@ func (p *Provider) Discover(q sessions.Query) ([]sessions.SessionRef, error) {
 		if title != "" && !strings.Contains(strings.ToLower(name), title) {
 			continue
 		}
+		// A Running trailing status alone can't mean ongoing: a killed or
+		// crashed Codex never appends a terminal event, so the status
+		// would read Running forever. Gate it on file freshness, the same
+		// arbitration claude/discover applies with
+		// transcript.OngoingStalenessThreshold.
+		ongoing := state.Status == rollout.Running &&
+			time.Since(f.ModTime) <= rollout.OngoingStalenessThreshold
 		refs = append(refs, sessions.SessionRef{
 			Provider: p.Name(),
 			ID:       f.SessionID,
@@ -79,7 +87,7 @@ func (p *Provider) Discover(q sessions.Query) ([]sessions.SessionRef, error) {
 			Title:    name,
 			CWD:      state.Cwd,
 			ModTime:  f.ModTime,
-			Ongoing:  state.Status == rollout.Running,
+			Ongoing:  ongoing,
 		})
 	}
 

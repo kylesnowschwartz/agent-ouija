@@ -11,6 +11,7 @@ import (
 	sessions "github.com/kylesnowschwartz/agent-ouija"
 	"github.com/kylesnowschwartz/agent-ouija/codex"
 	"github.com/kylesnowschwartz/agent-ouija/codex/codexdir"
+	"github.com/kylesnowschwartz/agent-ouija/codex/rollout"
 	"github.com/kylesnowschwartz/agent-ouija/sessionstest"
 )
 
@@ -83,57 +84,70 @@ func TestCodexProvider_NotALiveTracker(t *testing.T) {
 	}
 }
 
-// Ongoing must reflect the Running status specifically, not "anything
-// non-terminal": an idle rollout that never started a turn (only
-// turn_context) must not be reported ongoing.
-func TestCodexProvider_OngoingReflectsRunningStatus(t *testing.T) {
-	root := codexdir.Root(filepath.Join(t.TempDir(), ".codex"))
-	if err := os.MkdirAll(root.SessionsDir(), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	write := func(id, dateDir, body string) {
-		dir := filepath.Join(root.SessionsDir(), dateDir)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		path := filepath.Join(dir, "rollout-2026-07-10T01-00-00-"+id+".jsonl")
-		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	idleID := "00000000-0000-4000-8000-000000000010"
-	runningID := "00000000-0000-4000-8000-000000000011"
-	doneID := "00000000-0000-4000-8000-000000000012"
-
-	write(idleID, "2026/07/10", `{"timestamp":"t1","type":"turn_context","payload":{"cwd":"/proj/idle"}}`+"\n")
-	write(runningID, "2026/07/10", strings.Join([]string{
-		`{"timestamp":"t1","type":"turn_context","payload":{"cwd":"/proj/running"}}`,
+// Rollout bodies for the Ongoing tests: no lifecycle signal, a mid-turn
+// trailing signal, and a completed turn.
+var (
+	idleBody    = `{"timestamp":"t1","type":"turn_context","payload":{"cwd":"/proj"}}` + "\n"
+	runningBody = strings.Join([]string{
+		`{"timestamp":"t1","type":"turn_context","payload":{"cwd":"/proj"}}`,
 		`{"timestamp":"t2","type":"event_msg","payload":{"type":"user_message"}}`,
-	}, "\n")+"\n")
-	write(doneID, "2026/07/10", strings.Join([]string{
-		`{"timestamp":"t1","type":"turn_context","payload":{"cwd":"/proj/done"}}`,
+	}, "\n") + "\n"
+	doneBody = strings.Join([]string{
+		`{"timestamp":"t1","type":"turn_context","payload":{"cwd":"/proj"}}`,
 		`{"timestamp":"t2","type":"event_msg","payload":{"type":"task_complete"}}`,
-	}, "\n")+"\n")
+	}, "\n") + "\n"
+)
 
-	p := codex.New(root)
-	refs, err := p.Discover(sessions.Query{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	byID := map[string]sessions.SessionRef{}
-	for _, r := range refs {
-		byID[r.ID] = r
+// Ongoing must mean "Running AND recently written". Running alone is not
+// enough: a killed or crashed Codex never appends a terminal event, so a
+// stale rollout's trailing status reads Running forever
+// (rollout.OngoingStalenessThreshold is the cutoff, mirroring
+// claude/discover's use of transcript.OngoingStalenessThreshold). And
+// freshness alone is not enough either: idle or completed rollouts are
+// not ongoing no matter how new the file is.
+func TestCodexProvider_Ongoing(t *testing.T) {
+	fresh := time.Now()
+	stale := time.Now().Add(-rollout.OngoingStalenessThreshold - time.Minute)
+
+	tests := []struct {
+		name    string
+		body    string
+		modTime time.Time
+		want    bool
+	}{
+		{name: "fresh running is ongoing", body: runningBody, modTime: fresh, want: true},
+		{name: "stale running is not ongoing", body: runningBody, modTime: stale, want: false},
+		{name: "fresh done is not ongoing", body: doneBody, modTime: fresh, want: false},
+		{name: "stale done is not ongoing", body: doneBody, modTime: stale, want: false},
+		{name: "fresh idle-only is not ongoing", body: idleBody, modTime: fresh, want: false},
 	}
 
-	if byID[idleID].Ongoing {
-		t.Error("idle-only rollout (turn_context, no lifecycle signal) must not be Ongoing")
-	}
-	if !byID[runningID].Ongoing {
-		t.Error("rollout trailing on user_message must be Ongoing")
-	}
-	if byID[doneID].Ongoing {
-		t.Error("rollout trailing on task_complete must not be Ongoing")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := codexdir.Root(filepath.Join(t.TempDir(), ".codex"))
+			dir := filepath.Join(root.SessionsDir(), "2026", "07", "10")
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			id := "00000000-0000-4000-8000-000000000010"
+			path := filepath.Join(dir, "rollout-2026-07-10T01-00-00-"+id+".jsonl")
+			if err := os.WriteFile(path, []byte(tt.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chtimes(path, tt.modTime, tt.modTime); err != nil {
+				t.Fatal(err)
+			}
+
+			refs, err := codex.New(root).Discover(sessions.Query{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(refs) != 1 {
+				t.Fatalf("len(refs) = %d, want 1: %+v", len(refs), refs)
+			}
+			if refs[0].Ongoing != tt.want {
+				t.Errorf("Ongoing = %v, want %v", refs[0].Ongoing, tt.want)
+			}
+		})
 	}
 }

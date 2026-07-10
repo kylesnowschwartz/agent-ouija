@@ -2,9 +2,21 @@ package rollout
 
 import (
 	"io"
+	"time"
 
 	"github.com/kylesnowschwartz/agent-ouija/jsonl"
 )
+
+// OngoingStalenessThreshold is the maximum time since last file
+// modification before a Running rollout is considered dead regardless of
+// content. A rollout whose process is killed or crashes mid-turn never
+// gets a terminal event appended, so its trailing status stays Running
+// forever; Codex CLI writes on every response item and tool call, so 2
+// minutes of file silence means the process is gone. Mirrors
+// claude/transcript.OngoingStalenessThreshold (same name, value, and
+// role) rather than importing it -- provider subtrees don't import each
+// other.
+const OngoingStalenessThreshold = 2 * time.Minute
 
 // Status is the coarse lifecycle state this package derives from a
 // rollout stream. The vocabulary is owned here, not by any consumer's
