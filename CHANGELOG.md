@@ -5,6 +5,32 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.3.0 — 2026-07-11
+
+Additive only.
+
+- `codex/` subtree — Codex CLI on-disk state parsing, mirroring
+  `claude/`'s role, so consumers (tail-claude-mux's codexwatch,
+  tail-claude, tail-claude-hud) stop reimplementing it:
+  - `codex/rollout`: `Entry`/`Payload` + lenient `ParseEntry`;
+    `TrailingState` folds a rollout stream into a `{Status, Cwd}`
+    snapshot using an Idle/Running/Done/Interrupted/Error vocabulary
+    owned by this package (no dependency on any consumer's wire
+    format). `Ongoing` is gated on rollout file mtime
+    (`OngoingStalenessThreshold`, 2 minutes) so a killed or crashed
+    Codex, which never appends a terminal event, doesn't read Running
+    forever.
+  - `codex/codexdir`: `Root` + `DefaultRoot` (`$CODEX_HOME` /
+    `$HOME/.codex`), `SessionsDir`, `SessionIndexPath` — mirrors
+    `claude/claudedir`.
+  - `codex/discover`: `DiscoverRollouts` (nested YYYY/MM/DD walk,
+    trailing-UUID filename extraction) and `ThreadNames`
+    (`session_index.jsonl` reader, last-entry-per-id wins).
+  - `codex.Provider` implementing `sessions.Provider`, passing the
+    same sessionstest conformance suite as `claude.Provider`.
+    Deliberately no LiveTracker — Codex CLI keeps no on-disk
+    live-process registry to back it.
+
 ## v1.2.0 — 2026-07-06
 
 Additive only.
