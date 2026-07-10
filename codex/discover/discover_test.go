@@ -159,3 +159,40 @@ func TestThreadNames_EmptyFile(t *testing.T) {
 		t.Fatalf("len = %d, want 0", len(got))
 	}
 }
+
+func TestSessionIDFromPath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "conventional rollout path",
+			path: "/home/u/.codex/sessions/2026/07/10/rollout-2026-07-10T01-00-00-00000000-0000-4000-8000-000000000001.jsonl",
+			want: "00000000-0000-4000-8000-000000000001",
+		},
+		{
+			name: "bare filename",
+			path: "rollout-2026-07-10T01-00-00-00000000-0000-4000-8000-000000000002.jsonl",
+			want: "00000000-0000-4000-8000-000000000002",
+		},
+		{
+			name: "no trailing UUID",
+			path: "/home/u/.codex/sessions/2026/07/10/notes.jsonl",
+			want: "",
+		},
+		{
+			name: "UUID in directory, not filename",
+			path: "/tmp/00000000-0000-4000-8000-000000000003/other.jsonl",
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := discover.SessionIDFromPath(tt.path); got != tt.want {
+				t.Errorf("SessionIDFromPath(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}

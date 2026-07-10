@@ -5,9 +5,10 @@
 //
 // Verified live against codex-cli 0.144.1 (2026-07-10). Only the entry
 // types and payload fields needed to fold a rollout stream into a
-// trailing lifecycle snapshot (see TrailingState) are modeled; unknown
-// types and fields decode to their zero value rather than failing the
-// line, matching this repo's tolerant-decoding convention for
+// trailing lifecycle snapshot (see TrailingState) or to read the
+// session_meta header (see SessionMeta) are modeled; unknown types and
+// fields decode to their zero value rather than failing the line,
+// matching this repo's tolerant-decoding convention for
 // claude/transcript.
 package rollout
 
@@ -38,9 +39,45 @@ type Payload struct {
 	// empty) means this is the turn's final answer.
 	Phase string `json:"phase"`
 
-	// Cwd is set on "turn_context" entries: the project directory the
-	// session is running in.
+	// Cwd is set on "turn_context" entries and on the "session_meta"
+	// header: the project directory the session is running in.
 	Cwd string `json:"cwd"`
+
+	// Source is set on "session_meta" entries: where the session was
+	// started from.
+	Source Source `json:"source"`
+}
+
+// Source is session_meta's polymorphic "source" field: a plain JSON
+// string for sessions started directly by a Codex frontend (observed
+// live: "cli", "exec", "vscode", "mcp"), or a JSON object for derived
+// sessions (e.g. {"subagent": ...}). Rollouts from older Codex versions
+// omit the field entirely, leaving the zero Source.
+//
+// Raw is a string, not json.RawMessage as in claude/hooks and
+// claude/statusline, because Entry must stay comparable -- tests and
+// consumers compare entries with ==, and a []byte field would break
+// that.
+type Source struct {
+	// Kind is the string form of the field ("cli", "vscode", ...); ""
+	// when the source is an object or absent.
+	Kind string
+
+	// Raw is the source value exactly as written, preserving the object
+	// form for consumers that need it. "" when the field is absent.
+	Raw string
+}
+
+// UnmarshalJSON accepts both the string and object forms; it never
+// fails the line (tolerant decoding -- see ParseEntry).
+func (s *Source) UnmarshalJSON(b []byte) error {
+	s.Raw = string(b)
+	s.Kind = ""
+	var kind string
+	if json.Unmarshal(b, &kind) == nil {
+		s.Kind = kind
+	}
+	return nil
 }
 
 // ParseEntry parses one JSONL line into an Entry. Returns false if the

@@ -66,6 +66,14 @@ func DiscoverRollouts(sessionsDir string) ([]Rollout, error) {
 	return out, nil
 }
 
+// SessionIDFromPath extracts a trailing lowercase UUID from the
+// extension-stripped base name, or "" if there is none. It uses the
+// same filename rule as DiscoverRollouts. For paths obtained outside
+// DiscoverRollouts' tree walk (e.g. from lsof on a live Codex process).
+func SessionIDFromPath(path string) string {
+	return sessionIDFromName(filepath.Base(path))
+}
+
 // sessionIDFromName extracts the trailing UUID from a rollout filename,
 // or "" if the name doesn't match the convention.
 func sessionIDFromName(name string) string {

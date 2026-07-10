@@ -5,6 +5,26 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.4.0 — 2026-07-11
+
+Additive only. Closes the three shims tail-claude-mux's codexwatch kept
+after adopting v1.3.0 (each marked "TODO: move into agent-ouija").
+
+- `codex/rollout`: `Payload.Source` models session_meta's polymorphic
+  "source" field — string form in `Source.Kind` ("cli", "exec",
+  "vscode", "mcp" observed live), object form (subagent/derived
+  sessions) preserved verbatim in `Source.Raw` (a string, not
+  json.RawMessage, so `Entry` stays comparable). `Payload.Cwd` is now
+  documented as also set on session_meta.
+- `codex/rollout.SessionMeta` — reads a rollout stream's first
+  parseable entry and returns it if it is the session_meta header;
+  stops at that entry rather than reading the whole file. Verified
+  against all 493 live rollouts on disk (header on line 1 in every one).
+- `codex/discover.SessionIDFromPath` — extracts a trailing lowercase
+  UUID from an extension-stripped base name for a single already-known
+  rollout path (e.g. from lsof), using the same rule as
+  `DiscoverRollouts`.
+
 ## v1.3.0 — 2026-07-11
 
 Additive only.
