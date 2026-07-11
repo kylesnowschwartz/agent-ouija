@@ -23,6 +23,9 @@ type Entry struct {
 
 // Payload is the type-dependent body of an Entry.
 type Payload struct {
+	// ID is the session/thread ID on the session_meta header.
+	ID string `json:"id"`
+
 	// Type discriminates the payload shape. On "event_msg" entries:
 	// task_complete, turn_aborted, user_message, agent_message, error. On
 	// "response_item" entries: message, function_call,
@@ -46,6 +49,24 @@ type Payload struct {
 	// Source is set on "session_meta" entries: where the session was
 	// started from.
 	Source Source `json:"source"`
+
+	// Message is the text carried by event_msg agent_message payloads.
+	Message string `json:"message"`
+
+	// Content is the typed content carried by response_item messages.
+	Content Content `json:"content"`
+}
+
+// Content preserves response_item message content while keeping Entry
+// comparable. Final-output extraction decodes the raw value on demand.
+type Content struct {
+	Raw string
+}
+
+// UnmarshalJSON records content exactly as written.
+func (c *Content) UnmarshalJSON(b []byte) error {
+	c.Raw = string(b)
+	return nil
 }
 
 // Source is session_meta's polymorphic "source" field: a plain JSON
