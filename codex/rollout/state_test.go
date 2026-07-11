@@ -29,6 +29,11 @@ func TestTrailingState(t *testing.T) {
 			want:   rollout.State{Status: rollout.Idle, Cwd: "/work/proj", ApprovalsReviewer: "auto_review"},
 		},
 		{
+			name:   "malformed cwd preserves approvals reviewer only",
+			stream: `{"type":"turn_context","payload":{"cwd":123,"approvals_reviewer":"auto_review"}}` + "\n",
+			want:   rollout.State{Status: rollout.Idle, Cwd: "", ApprovalsReviewer: "auto_review"},
+		},
+		{
 			name: "user message then task_complete",
 			stream: strings.Join([]string{
 				`{"timestamp":"t1","type":"turn_context","payload":{"cwd":"/work/proj"}}`,

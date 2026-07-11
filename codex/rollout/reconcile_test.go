@@ -60,6 +60,7 @@ func TestReconcile(t *testing.T) {
 		{"stopped done", rollout.ClaimTurnStopped, rollout.State{Status: rollout.Done}, rollout.VerdictDone},
 		{"stopped interrupted", rollout.ClaimTurnStopped, rollout.State{Status: rollout.Interrupted}, rollout.VerdictInterrupted},
 		{"stopped error", rollout.ClaimTurnStopped, rollout.State{Status: rollout.Error}, rollout.VerdictError},
+		{"stopped running", rollout.ClaimTurnStopped, rollout.State{Status: rollout.Running}, rollout.VerdictIdle},
 		{"stopped idle", rollout.ClaimTurnStopped, rollout.State{Status: rollout.Idle, Cwd: "/work/proj"}, rollout.VerdictIdle},
 		{"stopped zero state", rollout.ClaimTurnStopped, rollout.State{}, rollout.VerdictIdle},
 		{"approval auto reviewed", rollout.ClaimApprovalRequested, rollout.State{ApprovalsReviewer: rollout.AutoReviewReviewer}, rollout.VerdictRunning},
@@ -85,6 +86,7 @@ func TestReconcileApprovalFixtures(t *testing.T) {
 		want rollout.Verdict
 	}{
 		{"testdata/auto-reviewed-approval.jsonl", rollout.VerdictRunning},
+		{"testdata/malformed-cwd-auto-review.jsonl", rollout.VerdictRunning},
 		{"testdata/manual-approval.jsonl", rollout.VerdictWaiting},
 	}
 	for _, tt := range tests {

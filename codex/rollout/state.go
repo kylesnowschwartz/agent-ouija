@@ -1,6 +1,7 @@
 package rollout
 
 import (
+	"encoding/json"
 	"io"
 	"time"
 
@@ -75,10 +76,11 @@ type State struct {
 // trailing State snapshot. Cwd is the first non-empty payload.cwd seen on a
 // turn_context entry (the project directory never changes mid-session).
 // ApprovalsReviewer is the value from the newest turn_context, including an
-// empty value. Status is the last recognized lifecycle signal, later entries
-// overriding earlier ones. Lines that fail to parse are skipped, not an error
-// -- see ParseEntry. The returned error reports only a failure to read the
-// underlying stream.
+// empty value. Approval evidence is extracted tolerantly when unrelated fields
+// fail typed decoding, preserving the historical minimal-decode behavior.
+// Status and Cwd deliberately remain strict through ParseEntry. Other lines
+// that fail to parse are skipped, not an error. The returned error reports only
+// a failure to read the underlying stream.
 func TrailingState(r io.Reader) (State, error) {
 	lr := jsonl.NewReader(r)
 	state := State{Status: Idle}
@@ -89,6 +91,9 @@ func TrailingState(r io.Reader) (State, error) {
 		}
 		entry, ok := ParseEntry([]byte(line))
 		if !ok {
+			if reviewer, isTurnContext := turnContextApprovals([]byte(line)); isTurnContext {
+				state.ApprovalsReviewer = reviewer
+			}
 			continue
 		}
 		if entry.Type == "turn_context" {
@@ -102,6 +107,19 @@ func TrailingState(r io.Reader) (State, error) {
 		}
 	}
 	return state, lr.Err()
+}
+
+func turnContextApprovals(line []byte) (string, bool) {
+	var entry struct {
+		Type    string `json:"type"`
+		Payload struct {
+			ApprovalsReviewer string `json:"approvals_reviewer"`
+		} `json:"payload"`
+	}
+	if json.Unmarshal(line, &entry) != nil || entry.Type != "turn_context" {
+		return "", false
+	}
+	return entry.Payload.ApprovalsReviewer, true
 }
 
 // entryStatus maps one entry to a lifecycle signal. The second return
