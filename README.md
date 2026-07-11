@@ -71,7 +71,7 @@ consumers reading `$CODEX_HOME` rollout transcripts.
 
 | You need | Import |
 |---|---|
-| Rollout entries + trailing status/cwd fold | `codex/rollout` |
+| Rollout entries, trailing status/cwd, final assistant output, session snapshot | `codex/rollout` |
 | Find rollout files, resolve thread names | `codex/discover` |
 | `$CODEX_HOME` path conventions | `codex/codexdir` |
 | `sessions.Provider` adapter | `codex` |
