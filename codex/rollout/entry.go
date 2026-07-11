@@ -46,6 +46,10 @@ type Payload struct {
 	// header: the project directory the session is running in.
 	Cwd string `json:"cwd"`
 
+	// ApprovalsReviewer is set on "turn_context" entries: "auto_review" when
+	// an external reviewer resolves approvals without user input.
+	ApprovalsReviewer string `json:"approvals_reviewer"`
+
 	// Source is set on "session_meta" entries: where the session was
 	// started from.
 	Source Source `json:"source"`

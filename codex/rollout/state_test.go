@@ -24,6 +24,11 @@ func TestTrailingState(t *testing.T) {
 			want:   rollout.State{Status: rollout.Idle, Cwd: "/work/proj"},
 		},
 		{
+			name:   "turn_context captures approvals reviewer",
+			stream: `{"timestamp":"t1","type":"turn_context","payload":{"cwd":"/work/proj","approvals_reviewer":"auto_review"}}` + "\n",
+			want:   rollout.State{Status: rollout.Idle, Cwd: "/work/proj", ApprovalsReviewer: "auto_review"},
+		},
+		{
 			name: "user message then task_complete",
 			stream: strings.Join([]string{
 				`{"timestamp":"t1","type":"turn_context","payload":{"cwd":"/work/proj"}}`,
@@ -121,6 +126,14 @@ func TestTrailingState(t *testing.T) {
 				`{"timestamp":"t2","type":"turn_context","payload":{"cwd":"/should/not/win"}}`,
 			}, "\n") + "\n",
 			want: rollout.State{Status: rollout.Idle, Cwd: "/work/proj"},
+		},
+		{
+			name: "newest approvals reviewer wins while first cwd wins",
+			stream: strings.Join([]string{
+				`{"timestamp":"t1","type":"turn_context","payload":{"cwd":"/work/proj","approvals_reviewer":"auto_review"}}`,
+				`{"timestamp":"t2","type":"turn_context","payload":{"cwd":"/should/not/win"}}`,
+			}, "\n") + "\n",
+			want: rollout.State{Status: rollout.Idle, Cwd: "/work/proj", ApprovalsReviewer: ""},
 		},
 		{
 			name: "malformed line skipped, surrounding lines still parsed",

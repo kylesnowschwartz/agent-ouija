@@ -66,15 +66,19 @@ func (s Status) String() string {
 type State struct {
 	Status Status
 	Cwd    string
+	// ApprovalsReviewer is the newest turn_context's approvals_reviewer;
+	// it is empty when no turn_context provides one.
+	ApprovalsReviewer string
 }
 
 // TrailingState reads every line of a rollout stream and folds it into a
-// trailing {Status, Cwd} snapshot: Cwd is the first non-empty
-// payload.cwd seen on a turn_context entry (the project directory never
-// changes mid-session); Status is the last recognized lifecycle signal,
-// later entries overriding earlier ones. Lines that fail to parse are
-// skipped, not an error -- see ParseEntry. The returned error reports
-// only a failure to read the underlying stream.
+// trailing State snapshot. Cwd is the first non-empty payload.cwd seen on a
+// turn_context entry (the project directory never changes mid-session).
+// ApprovalsReviewer is the value from the newest turn_context, including an
+// empty value. Status is the last recognized lifecycle signal, later entries
+// overriding earlier ones. Lines that fail to parse are skipped, not an error
+// -- see ParseEntry. The returned error reports only a failure to read the
+// underlying stream.
 func TrailingState(r io.Reader) (State, error) {
 	lr := jsonl.NewReader(r)
 	state := State{Status: Idle}
@@ -87,8 +91,11 @@ func TrailingState(r io.Reader) (State, error) {
 		if !ok {
 			continue
 		}
-		if state.Cwd == "" && entry.Type == "turn_context" {
-			state.Cwd = entry.Payload.Cwd
+		if entry.Type == "turn_context" {
+			if state.Cwd == "" {
+				state.Cwd = entry.Payload.Cwd
+			}
+			state.ApprovalsReviewer = entry.Payload.ApprovalsReviewer
 		}
 		if next, ok := entryStatus(entry); ok {
 			state.Status = next
