@@ -5,6 +5,27 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.6.0 — 2026-07-11
+
+Additive only.
+
+- `codex/rollout`: `Claim`, `ClaimForHookEvent`, `NeedsEvidence`,
+  `Verdict`, and `Reconcile` reconcile caller-owned Codex lifecycle-hook
+  observations with rollout evidence. Terminal rollout states override a
+  `Stop` claim, while an `auto_review` turn context keeps an approval claim
+  running instead of waiting. `TrailingState` now includes the newest turn
+  context's `ApprovalsReviewer` value without another rollout read.
+
+## v1.5.0 — 2026-07-11
+
+Additive only.
+
+- `codex/rollout`: `FinalMessage` and `FinalAssistantMessage` return the
+  newest final-phase assistant output from either Codex message encoding,
+  with its timestamp and source entry.
+- `codex/rollout`: `Snapshot` and `SessionSnapshot` combine session metadata,
+  trailing state, and final assistant output for one rollout path.
+
 ## v1.4.0 — 2026-07-11
 
 Additive only. Closes the three shims tail-claude-mux's codexwatch kept
