@@ -145,3 +145,41 @@ func TestScanSubagentMeta_MissingSidecarYieldsZeroMeta(t *testing.T) {
 		t.Errorf("got AgentType=%q Description=%q, want both empty", metas[0].AgentType, metas[0].Description)
 	}
 }
+
+func TestScanSubagentMeta_ModelFromNewestAssistantEntry(t *testing.T) {
+	sessionPath, subagentsDir := writeScanFixture(t, "task prompt", time.Now())
+	agentPath := filepath.Join(subagentsDir, "agent-abc123.jsonl")
+	lines := `{"type":"assistant","timestamp":"2026-08-18T01:00:00Z","message":{"role":"assistant","model":"claude-opus-4-8","content":[]}}
+{"type":"user","timestamp":"2026-08-18T01:00:01Z","message":{"role":"user","content":"tool result"}}
+{"type":"assistant","timestamp":"2026-08-18T01:00:02Z","message":{"role":"assistant","model":"claude-haiku-4-5-20251001","content":[]}}
+`
+	f, err := os.OpenFile(agentPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatalf("open agent file: %v", err)
+	}
+	if _, err := f.WriteString(lines); err != nil {
+		t.Fatalf("append entries: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	metas := agents.ScanSubagentMeta(sessionPath)
+	if len(metas) != 1 {
+		t.Fatalf("ScanSubagentMeta() len = %d, want 1", len(metas))
+	}
+	if metas[0].Model != "claude-haiku-4-5-20251001" {
+		t.Errorf("Model = %q, want newest assistant model", metas[0].Model)
+	}
+}
+
+func TestScanSubagentMeta_ModelEmptyWithoutAssistantEntry(t *testing.T) {
+	sessionPath, _ := writeScanFixture(t, "task prompt", time.Now())
+	metas := agents.ScanSubagentMeta(sessionPath)
+	if len(metas) != 1 {
+		t.Fatalf("ScanSubagentMeta() len = %d, want 1", len(metas))
+	}
+	if metas[0].Model != "" {
+		t.Errorf("Model = %q, want empty", metas[0].Model)
+	}
+}

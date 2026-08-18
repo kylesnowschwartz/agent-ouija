@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/kylesnowschwartz/agent-ouija/jsonl"
 )
 
 // SubagentMeta is a lightweight subagent record built from file metadata
@@ -15,6 +17,7 @@ type SubagentMeta struct {
 	ID          string    // hex UUID from the agent-{id}.jsonl filename
 	AgentType   string    // from the .meta.json sidecar ("Explore", "rb-worker", ...)
 	Description string    // from the .meta.json sidecar (human task name)
+	Model       string    // newest assistant entry's message.model within the bounded tail; "" when none seen yet
 	FirstTime   time.Time // first entry's timestamp; zero when unparseable
 	ModTime     time.Time // transcript file mtime
 	Size        int64     // transcript file size in bytes
@@ -83,6 +86,7 @@ func ScanSubagentMeta(sessionPath string) []SubagentMeta {
 			ID:          agentID,
 			AgentType:   meta.agentType,
 			Description: meta.description,
+			Model:       scanNewestModel(filepath.Join(subagentsDir, name)),
 			FirstTime:   first.timestamp,
 			ModTime:     info.ModTime(),
 			Size:        info.Size(),
@@ -90,6 +94,38 @@ func ScanSubagentMeta(sessionPath string) []SubagentMeta {
 	}
 
 	return agents
+}
+
+// modelScanBytes bounds scanNewestModel's reverse read. The model appears on
+// every assistant entry, so the newest one sits within the last few entries;
+// 32 KiB keeps the per-tick cost flat regardless of transcript size.
+const modelScanBytes = 32 * 1024
+
+// scanNewestModel returns the message.model of the newest assistant entry in
+// the bounded tail of a subagent transcript, or "" when none is present
+// (e.g. the agent has not produced an assistant turn yet). The sidecar
+// meta.json carries no model field, and the spawning tool_use input's model
+// param is absent unless the caller overrode it — the transcript is the only
+// authoritative source.
+func scanNewestModel(path string) string {
+	var found string
+	_ = jsonl.ReverseScan(path, modelScanBytes, func(line []byte) bool {
+		var entry struct {
+			Type    string `json:"type"`
+			Message struct {
+				Model string `json:"model"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(line, &entry) != nil {
+			return true
+		}
+		if entry.Type == "assistant" && entry.Message.Model != "" {
+			found = entry.Message.Model
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 // firstEntryInfo holds the parsed results from a subagent JSONL's first line.
