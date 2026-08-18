@@ -3,12 +3,22 @@ package rollout
 import (
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/kylesnowschwartz/agent-ouija/jsonl"
 )
 
 const finalAssistantScanBytes = 256 * 1024
+
+// citationMarkup matches the <oai-mem-citation> blocks Codex appends to its
+// final answer. They are machine metadata for Codex's own memory system, not
+// part of the assistant's message, so extraction removes them.
+var citationMarkup = regexp.MustCompile(`(?s)\s*<oai-mem-citation>.*?</oai-mem-citation>`)
+
+func stripCitationMarkup(text string) string {
+	return strings.TrimSpace(citationMarkup.ReplaceAllString(text, ""))
+}
 
 // FinalMessage is the final assistant-authored answer and its provenance.
 type FinalMessage struct {
@@ -37,7 +47,7 @@ func FinalAssistantMessage(path string) (message FinalMessage, ok bool, err erro
 
 		switch {
 		case entry.Type == "response_item" && entry.Payload.Type == "message" && entry.Payload.Role == "assistant":
-			message.Text = contentText(entry.Payload.Content)
+			message.Text = stripCitationMarkup(contentText(entry.Payload.Content))
 			if message.Text == "" {
 				return true
 			}
@@ -45,7 +55,7 @@ func FinalAssistantMessage(path string) (message FinalMessage, ok bool, err erro
 			ok = true
 			return false
 		case entry.Type == "event_msg" && entry.Payload.Type == "agent_message":
-			message.Text = entry.Payload.Message
+			message.Text = stripCitationMarkup(entry.Payload.Message)
 			if message.Text == "" {
 				return true
 			}

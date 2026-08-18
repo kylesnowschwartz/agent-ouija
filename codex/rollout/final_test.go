@@ -20,6 +20,7 @@ func TestFinalAssistantMessageFormatVariants(t *testing.T) {
 		{"response-item-final.jsonl", "first answer", "11111111-1111-1111-1111-111111111111", "/work/one", "response_item.message.role=assistant.phase=final_answer"},
 		{"agent-message-final.jsonl", "delegate answer", "22222222-2222-2222-2222-222222222222", "/work/shared", "event_msg.agent_message.phase=final_answer"},
 		{"agent-message-same-cwd.jsonl", "other delegate answer", "33333333-3333-3333-3333-333333333333", "/work/shared", "event_msg.agent_message.phase=implicit_final"},
+		{"agent-message-citation.jsonl", "RESULT: cited answer", "44444444-4444-4444-4444-444444444444", "/work/cited", "event_msg.agent_message.phase=final_answer"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.file, func(t *testing.T) {
