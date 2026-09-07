@@ -15,7 +15,7 @@ import (
 
 // knownTopLevelKeys is the maintained allowlist of top-level JSONL entry
 // keys. Seeded empirically from a 1736-file live corpus (Claude Code
-// through 2.1.2xx, 2026-07). A NEW key appearing here is exactly the
+// through 2.1.263, 2026-09). A NEW key appearing here is exactly the
 // schema-drift signal this test exists to catch: decide whether the
 // library must model it, then add it deliberately.
 var knownTopLevelKeys = map[string]bool{
@@ -54,6 +54,52 @@ var knownTopLevelKeys = map[string]bool{
 	"toolUseResult": true, "trigger": true, "type": true,
 	"userType": true, "uuid": true, "version": true,
 	"worktreeSession": true,
+
+	// Entry type cost-state contains session cost totals.
+	"totalCostUSD": true, "totalAPIDuration": true,
+	"totalAPIDurationWithoutRetries": true, "totalToolDuration": true,
+	"totalLinesAdded": true, "totalLinesRemoved": true,
+	"totalDuration": true, "startTime": true, "modelUsage": true,
+	"hasUnknownModelCost": true,
+
+	// Entry type file-history-delta contains snapshot tracking details.
+	"trackingPath": true, "snapshotMessageId": true, "backup": true,
+
+	// Entry type queue-operation contains an operation reason.
+	"reason": true,
+
+	// Entry type atis-latch contains the latch value.
+	"atis": true,
+
+	// Entry type last-prompt contains explicit prompt state.
+	"explicit": true,
+
+	// Entry type continued-in contains the destination session identifier.
+	"continuedInSessionId": true,
+
+	// Assistant entries contain response lifecycle details.
+	"effort": true, "apiBlockIndex": true, "isAbortedMidStream": true,
+	"truncatedAfterOutput": true, "supersedesUuids": true,
+
+	// User entries contain turn and scheduling details.
+	"turnCompanion": true, "queueSkipAttachments": true,
+	"classifierMetaLines": true, "userFeedback": true,
+	"interruptedByShutdown": true, "scheduledTaskId": true,
+	"scheduledFireId": true,
+
+	// System subtype scheduled_task_fire contains task scheduling details.
+	"cron": true, "cronKind": true, "taskId": true, "taskKind": true,
+	"prompt": true,
+
+	// System subtype model_refusal_fallback contains refusal recovery details.
+	"scope": true, "retractedMessageUuids": true,
+	"refusedUserMessageUuid": true,
+
+	// System subtype informational contains continuation control.
+	"preventContinuation": true,
+
+	// Assistant, user, and attachment entries contain a snake-case session identifier.
+	"session_id": true,
 }
 
 // knownMessageKeys is the allowlist for keys inside the nested message
