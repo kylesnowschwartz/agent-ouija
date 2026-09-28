@@ -15,7 +15,7 @@ import (
 
 // knownTopLevelKeys is the maintained allowlist of top-level JSONL entry
 // keys. Seeded empirically from a 1736-file live corpus (Claude Code
-// through 2.1.263, 2026-09). A NEW key appearing here is exactly the
+// through 2.1.283, 2026-09). A NEW key appearing here is exactly the
 // schema-drift signal this test exists to catch: decide whether the
 // library must model it, then add it deliberately.
 var knownTopLevelKeys = map[string]bool{
@@ -80,12 +80,24 @@ var knownTopLevelKeys = map[string]bool{
 	// Assistant entries contain response lifecycle details.
 	"effort": true, "apiBlockIndex": true, "isAbortedMidStream": true,
 	"truncatedAfterOutput": true, "supersedesUuids": true,
+	"perTurnEffort": true, "serverClassifierRequest": true,
+	"wireToolInputs": true, "wireIngestContext": true,
 
 	// User entries contain turn and scheduling details.
 	"turnCompanion": true, "queueSkipAttachments": true,
 	"classifierMetaLines": true, "userFeedback": true,
 	"interruptedByShutdown": true, "scheduledTaskId": true,
-	"scheduledFireId": true,
+	"scheduledFireId": true, "turnOrigin": true,
+	"serverClassifierContext": true, "queueOrigin": true,
+
+	// Attachment entries contain rendered injected text.
+	"rendered": true, "renderedInHumanTurn": true,
+
+	// System subtype local_command contains command invocation details.
+	"commandRun": true,
+
+	// System subtype api_error contains the error source.
+	"source": true,
 
 	// System subtype scheduled_task_fire contains task scheduling details.
 	"cron": true, "cronKind": true, "taskId": true, "taskKind": true,
@@ -109,6 +121,9 @@ var knownMessageKeys = map[string]bool{
 	"diagnostics": true, "id": true, "model": true, "role": true,
 	"stop_details": true, "stop_reason": true, "stop_sequence": true,
 	"type": true, "usage": true,
+
+	// Assistant messages contain request input transformations.
+	"input_transformations": true,
 }
 
 // TestCorpus is the gated schema-drift detector. Point CLAUDE_CORPUS_DIR
