@@ -5,6 +5,22 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.8.0 — 2026-08-18
+
+Additive only.
+
+- `claude/agents`: `SubagentMeta.Model` reports the newest assistant model
+  found within the transcript's bounded tail, or an empty string when none is
+  present.
+
+## v1.7.0 — 2026-08-18
+
+Additive only.
+
+- `codex/rollout`: `FinalAssistantMessage` removes `oai-mem-citation`
+  metadata from both supported final-message encodings and trims surrounding
+  whitespace.
+
 ## v1.6.0 — 2026-07-11
 
 Additive only.
