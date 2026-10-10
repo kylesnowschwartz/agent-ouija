@@ -15,6 +15,12 @@
 //   - toolUseResult is object-OR-array: a JSON object for regular tools,
 //     a JSON array for MCP tools. Entry stores it as json.RawMessage and
 //     ToolUseResultMap returns nil for the array shape.
+//   - is_error does not mean failed: Claude Code sets it on calls the user
+//     declined or interrupted too. ExtractContentBlocks derives
+//     ToolResultBlock.Outcome from toolDenialKind, toolUseResult (the
+//     "User rejected tool use" string, or the object's interrupted flag),
+//     and the content's leading marker, falling back to is_error. The
+//     entry-level fields count only when the entry holds one tool_result.
 //   - usage.iterations recurses: message.usage may carry an iterations
 //     array (one element per inference cycle when the server collapses
 //     several into one assistant entry, Claude Code 2.1.19x+). EntryUsage

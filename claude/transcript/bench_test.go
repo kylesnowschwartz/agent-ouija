@@ -2,6 +2,7 @@ package transcript_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/kylesnowschwartz/agent-ouija/claude/transcript"
@@ -60,5 +61,25 @@ func BenchmarkClassify(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = transcript.Classify(e)
+	}
+}
+
+// BenchmarkExtractContentBlocksToolResult covers the tool_result path: a
+// Bash result with 64 KiB of output in both the block content and the
+// entry's object-shaped toolUseResult, which the outcome check reads.
+func BenchmarkExtractContentBlocksToolResult(b *testing.B) {
+	b.ReportAllocs()
+	out := strings.Repeat("ok  \tgithub.com/example/pkg\t0.01s\n", 64*1024/32)
+	line := fmt.Appendf(nil,
+		`{"type":"user","uuid":"u1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu1","content":%q,"is_error":false}]},"toolUseResult":{"stdout":%q,"stderr":"","interrupted":false,"isImage":false,"noOutputExpected":false}}`,
+		out, out,
+	)
+	e, ok := transcript.ParseEntry(line)
+	if !ok {
+		b.Fatal("ParseEntry failed")
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = transcript.ExtractContentBlocks(e)
 	}
 }

@@ -1,8 +1,10 @@
 package transcript
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // ToolUseBlock is a raw tool_use content block from an assistant message.
@@ -19,7 +21,47 @@ type ToolResultBlock struct {
 	ToolUseID string          `json:"tool_use_id"`
 	Content   json.RawMessage `json:"content"`
 	IsError   bool            `json:"is_error"`
+
+	// Outcome tells a declined or interrupted call apart from a failed one.
+	// Claude Code sets is_error on all three, so IsError alone cannot.
+	// ExtractContentBlocks fills it; see ToolResultOutcome for the signals.
+	Outcome ToolResultOutcome `json:"-"`
 }
+
+// ToolResultOutcome is how a tool call ended, as recorded in its
+// tool_result block and the entry carrying it.
+type ToolResultOutcome int
+
+const (
+	// ToolResultOK: the tool ran and is_error is false.
+	ToolResultOK ToolResultOutcome = iota
+	// ToolResultError: the tool ran and failed, or a permission rule, hook,
+	// or the auto-mode classifier refused it. is_error is true.
+	ToolResultError
+	// ToolResultRejected: the user declined the call at the approval
+	// dialog or called it off, so it never ran.
+	ToolResultRejected
+	// ToolResultInterrupted: the user interrupted the call while it ran.
+	ToolResultInterrupted
+)
+
+// Signals Claude Code writes for a declined or interrupted tool call.
+const (
+	// rejectedToolUseResult is the whole toolUseResult string of a call
+	// declined at the approval dialog.
+	rejectedToolUseResult = "User rejected tool use"
+	// rejectedContentPrefix opens the tool_result content of a declined
+	// ("doesn't want to proceed with this tool use") or cancelled ("doesn't
+	// want to take this action right now") call. toolUseResult repeats it,
+	// sometimes behind an "Error: " prefix.
+	rejectedContentPrefix = "The user doesn't want to "
+	// interruptedContentPrefix opens the tool_result content of a call the
+	// user interrupted ("[Request interrupted by user for tool use]").
+	interruptedContentPrefix = "[Request interrupted by user"
+
+	denialKindUserRejected = "user-rejected"
+	denialKindCancelled    = "cancelled"
+)
 
 // ThinkingBlock marks the presence of a thinking content block. The thinking
 // text is intentionally omitted — only presence matters to known consumers.
@@ -67,6 +109,17 @@ func ExtractContentBlocks(e Entry) ContentBlocks {
 	}
 
 	var result ContentBlocks
+	toolResults := 0
+	for _, rb := range raw {
+		if rb.Type == "tool_result" {
+			toolResults++
+		}
+	}
+	// toolUseResult and toolDenialKind describe the entry, not one block, so
+	// they decide a block's outcome only when the entry carries exactly one
+	// tool_result.
+	entrySignals := toolResults == 1
+
 	for i, rb := range raw {
 		switch rb.Type {
 		case "tool_use":
@@ -77,6 +130,7 @@ func ExtractContentBlocks(e Entry) ContentBlocks {
 		case "tool_result":
 			var block ToolResultBlock
 			if err := unmarshalNthBlock(e.Message.Content, i, &block); err == nil {
+				block.Outcome = toolResultOutcome(e, block, entrySignals)
 				result.ToolResult = append(result.ToolResult, block)
 			}
 		case "thinking":
@@ -86,6 +140,109 @@ func ExtractContentBlocks(e Entry) ContentBlocks {
 		}
 	}
 	return result
+}
+
+// toolResultOutcome classifies one tool_result. A rejection wins over an
+// interruption: Claude Code follows a declined call with a separate
+// "[Request interrupted by user for tool use]" text entry, so the decline
+// is the more specific record. is_error is the fallback.
+func toolResultOutcome(e Entry, block ToolResultBlock, entrySignals bool) ToolResultOutcome {
+	text := markerText(block.Content)
+	var useResult toolUseResultSignals
+	if entrySignals {
+		useResult = decodeToolUseResultSignals(e.ToolUseResult)
+	}
+
+	switch {
+	case entrySignals && (e.ToolDenialKind == denialKindUserRejected || e.ToolDenialKind == denialKindCancelled),
+		useResult.text == rejectedToolUseResult,
+		strings.HasPrefix(strings.TrimPrefix(useResult.text, "Error: "), rejectedContentPrefix),
+		strings.HasPrefix(text, rejectedContentPrefix):
+		return ToolResultRejected
+	case useResult.interrupted, strings.HasPrefix(text, interruptedContentPrefix):
+		return ToolResultInterrupted
+	case block.IsError:
+		return ToolResultError
+	default:
+		return ToolResultOK
+	}
+}
+
+// interruptedFlag is how the Bash tool's object-shaped toolUseResult marks
+// an interrupted command. Claude Code writes compact JSON, and the same
+// bytes inside an escaped string value read `\"interrupted\":true`, so a
+// substring match is a sound prefilter.
+var interruptedFlag = []byte(`"interrupted":true`)
+
+// toolUseResultSignals is what toolResultOutcome reads from an entry's
+// toolUseResult: the whole value when it is a string that may carry a
+// rejection, or the interrupted flag when it is an object.
+type toolUseResultSignals struct {
+	text        string
+	interrupted bool
+}
+
+// decodeToolUseResultSignals decodes toolUseResult only when a cheap byte
+// scan finds a signal in it, because the value can hold a whole file or
+// command output and this runs on every tool_result.
+func decodeToolUseResultSignals(raw json.RawMessage) toolUseResultSignals {
+	if len(raw) == 0 {
+		return toolUseResultSignals{}
+	}
+	switch raw[0] {
+	case '"':
+		if !bytes.Contains(raw, []byte(rejectedToolUseResult)) && !bytes.Contains(raw, []byte(rejectedContentPrefix)) {
+			return toolUseResultSignals{}
+		}
+		var s string
+		if json.Unmarshal(raw, &s) == nil {
+			return toolUseResultSignals{text: s}
+		}
+	case '{':
+		if !bytes.Contains(raw, interruptedFlag) {
+			return toolUseResultSignals{}
+		}
+		var obj struct {
+			Interrupted bool `json:"interrupted"`
+		}
+		if json.Unmarshal(raw, &obj) == nil {
+			return toolUseResultSignals{interrupted: obj.Interrupted}
+		}
+	}
+	return toolUseResultSignals{}
+}
+
+// markerText returns a tool_result's content when it is a string, or its
+// first text block when it is an array, but only when the content contains
+// a rejection or interruption marker; otherwise it skips decoding and
+// returns "".
+func markerText(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	if !bytes.Contains(raw, []byte(rejectedContentPrefix)) && !bytes.Contains(raw, []byte(interruptedContentPrefix)) {
+		return ""
+	}
+	switch raw[0] {
+	case '"':
+		var s string
+		if json.Unmarshal(raw, &s) == nil {
+			return s
+		}
+	case '[':
+		var blocks []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}
+		if json.Unmarshal(raw, &blocks) == nil {
+			for _, b := range blocks {
+				if b.Type == "text" {
+					return b.Text
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // unmarshalNthBlock unmarshals the nth element of a JSON array into dest.

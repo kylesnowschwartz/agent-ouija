@@ -102,6 +102,15 @@ type Entry struct {
 	ToolUseResult   json.RawMessage `json:"toolUseResult"`
 	SourceToolUseID string          `json:"sourceToolUseID"`
 
+	// ToolDenialKind names why a tool call was refused before it ran.
+	// Observed values: "user-rejected" (declined at the approval dialog),
+	// "cancelled" (the user called the action off), "permission-rule"
+	// (a permission rule or PreToolUse hook denied it), "automode-blocked"
+	// and "automode-unavailable" (the auto-mode classifier denied it or
+	// could not decide). Empty when the call was not denied or the entry
+	// predates the field.
+	ToolDenialKind string `json:"toolDenialKind"`
+
 	// Summary entries (type=summary) use leafUuid instead of uuid and carry
 	// the compression title in Summary rather than message.content.
 	LeafUUID string `json:"leafUuid"`
