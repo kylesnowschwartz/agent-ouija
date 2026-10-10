@@ -21,6 +21,10 @@
 //     nests recursively; the live context window is the LAST iteration's
 //     snapshot (EntryUsage.ContextUsage), while top-level counts are a
 //     merge that overstates the window.
+//   - usage.cache_creation splits the cache write by lifetime
+//     ({ephemeral_5m_input_tokens, ephemeral_1h_input_tokens}) at both the
+//     top level and inside each iteration. Absent on older entries, where
+//     EntryUsage.CacheCreation stays the zero value.
 //   - ParseTimestamp is multi-format: RFC3339Nano, RFC3339, and the
 //     timezone-less variant Claude Code sometimes emits. Unknown formats
 //     yield the zero time, never an error.

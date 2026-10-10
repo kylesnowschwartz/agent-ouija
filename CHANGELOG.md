@@ -5,6 +5,16 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## Unreleased
+
+Additive only.
+
+- `claude/transcript`: `EntryUsage.CacheCreation` (new type
+  `CacheCreationUsage`) decodes `usage.cache_creation`, the prompt-cache
+  write split into `Ephemeral5mInputTokens` and `Ephemeral1hInputTokens`.
+  Iteration elements carry it too. It is the zero value on entries without
+  the field.
+
 ## v1.8.0 — 2026-08-18
 
 Additive only.

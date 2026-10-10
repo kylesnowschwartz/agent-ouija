@@ -198,3 +198,43 @@ func TestParseEntry_ForkedFrom(t *testing.T) {
 		t.Errorf("ForkedFrom = %+v, want nil on an unforked entry", e2.ForkedFrom)
 	}
 }
+
+// Assistant usage carries cache_creation, the cache write split by lifetime,
+// at the top level and inside each iteration. Fixture sanitized from a live
+// transcript.
+func TestParseEntry_UsageCacheCreationByLifetime(t *testing.T) {
+	line := `{"type":"assistant","uuid":"33333333-3333-3333-3333-333333333333","timestamp":"2026-10-10T09:00:00.000Z","isSidechain":false,"message":{"id":"msg_01","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":2,"cache_creation_input_tokens":37125,"cache_read_input_tokens":15575,"output_tokens":336,"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":37125,"ephemeral_5m_input_tokens":0},"iterations":[{"input_tokens":2,"output_tokens":336,"cache_read_input_tokens":15575,"cache_creation_input_tokens":37125,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":37125},"type":"message"}]}}}`
+
+	e, ok := transcript.ParseEntry([]byte(line))
+	if !ok {
+		t.Fatal("ParseEntry rejected the assistant entry")
+	}
+	want := transcript.CacheCreationUsage{Ephemeral5mInputTokens: 0, Ephemeral1hInputTokens: 37125}
+	if got := e.Message.Usage.CacheCreation; got != want {
+		t.Errorf("CacheCreation = %+v, want %+v", got, want)
+	}
+	if len(e.Message.Usage.Iterations) != 1 {
+		t.Fatalf("Iterations = %d, want 1", len(e.Message.Usage.Iterations))
+	}
+	if got := e.Message.Usage.ContextUsage().CacheCreation; got != want {
+		t.Errorf("iteration CacheCreation = %+v, want %+v", got, want)
+	}
+
+	fiveMin := `{"type":"assistant","uuid":"44444444-4444-4444-4444-444444444444","timestamp":"2026-10-10T09:00:01.000Z","message":{"role":"assistant","usage":{"cache_creation_input_tokens":812,"cache_creation":{"ephemeral_5m_input_tokens":812,"ephemeral_1h_input_tokens":0}}}}`
+	e2, ok := transcript.ParseEntry([]byte(fiveMin))
+	if !ok {
+		t.Fatal("ParseEntry rejected the 5m entry")
+	}
+	if got := e2.Message.Usage.CacheCreation.Ephemeral5mInputTokens; got != 812 {
+		t.Errorf("Ephemeral5mInputTokens = %d, want 812", got)
+	}
+
+	legacy := `{"type":"assistant","uuid":"55555555-5555-5555-5555-555555555555","timestamp":"2026-10-10T09:00:02.000Z","message":{"role":"assistant","usage":{"input_tokens":10,"cache_creation_input_tokens":5}}}`
+	e3, ok := transcript.ParseEntry([]byte(legacy))
+	if !ok {
+		t.Fatal("ParseEntry rejected the legacy entry")
+	}
+	if got := e3.Message.Usage.CacheCreation; got != (transcript.CacheCreationUsage{}) {
+		t.Errorf("CacheCreation = %+v, want zero value when absent", got)
+	}
+}

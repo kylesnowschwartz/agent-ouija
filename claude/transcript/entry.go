@@ -14,12 +14,24 @@ import (
 // The top-level counts on a multi-iteration message are a merge across
 // cycles; the live context window is the LAST iteration's snapshot (this
 // mirrors Claude Code's own context-window math).
+//
+// CacheCreation splits CacheCreationInputTokens by the cache lifetime the
+// tokens were written with. It is the zero value when the response wrote
+// no cache or predates the split.
 type EntryUsage struct {
-	InputTokens              int          `json:"input_tokens"`
-	OutputTokens             int          `json:"output_tokens"`
-	CacheReadInputTokens     int          `json:"cache_read_input_tokens"`
-	CacheCreationInputTokens int          `json:"cache_creation_input_tokens"`
-	Iterations               []EntryUsage `json:"iterations"`
+	InputTokens              int                `json:"input_tokens"`
+	OutputTokens             int                `json:"output_tokens"`
+	CacheReadInputTokens     int                `json:"cache_read_input_tokens"`
+	CacheCreationInputTokens int                `json:"cache_creation_input_tokens"`
+	CacheCreation            CacheCreationUsage `json:"cache_creation"`
+	Iterations               []EntryUsage       `json:"iterations"`
+}
+
+// CacheCreationUsage is the per-lifetime breakdown of the prompt-cache write
+// for one API response: tokens cached for five minutes versus one hour.
+type CacheCreationUsage struct {
+	Ephemeral5mInputTokens int `json:"ephemeral_5m_input_tokens"`
+	Ephemeral1hInputTokens int `json:"ephemeral_1h_input_tokens"`
 }
 
 // ContextUsage returns the usage record that represents the live context
