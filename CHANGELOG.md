@@ -5,7 +5,7 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
-## Unreleased
+## v1.9.0 — 2026-10-10
 
 Additive only.
 
