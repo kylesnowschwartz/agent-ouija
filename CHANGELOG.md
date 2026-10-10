@@ -5,6 +5,22 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.10.0 — 2026-10-10
+
+Additive only.
+
+- `claude/transcript`: `ToolResultBlock.Outcome` (new type
+  `ToolResultOutcome`: `ToolResultOK`, `ToolResultError`,
+  `ToolResultRejected`, `ToolResultInterrupted`) tells a call the user
+  declined or interrupted apart from one that failed, since Claude Code
+  sets `is_error` on all three. `ExtractContentBlocks` derives it from the
+  entry's `toolDenialKind` and `toolUseResult` and the result content,
+  falling back to `is_error`. Denials by a permission rule, hook, or the
+  auto-mode classifier stay `ToolResultError`.
+- `claude/transcript`: `Entry.ToolDenialKind` decodes `toolDenialKind`, the
+  reason Claude Code refused a tool call (`user-rejected`, `cancelled`,
+  `permission-rule`, `automode-blocked`, `automode-unavailable`).
+
 ## v1.9.0 — 2026-10-10
 
 Additive only.
