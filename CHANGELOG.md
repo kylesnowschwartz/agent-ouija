@@ -14,6 +14,8 @@ Additive only.
   write split into `Ephemeral5mInputTokens` and `Ephemeral1hInputTokens`.
   Iteration elements carry it too. It is the zero value on entries without
   the field.
+- `claude/transcript`: `Entry.Message.ID` decodes `message.id`, the API
+  message id that every entry of one multi-entry assistant response shares.
 
 ## v1.8.0 — 2026-08-18
 

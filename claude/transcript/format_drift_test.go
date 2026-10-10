@@ -209,6 +209,9 @@ func TestParseEntry_UsageCacheCreationByLifetime(t *testing.T) {
 	if !ok {
 		t.Fatal("ParseEntry rejected the assistant entry")
 	}
+	if e.Message.ID != "msg_01" {
+		t.Errorf("Message.ID = %q, want %q", e.Message.ID, "msg_01")
+	}
 	want := transcript.CacheCreationUsage{Ephemeral5mInputTokens: 0, Ephemeral1hInputTokens: 37125}
 	if got := e.Message.Usage.CacheCreation; got != want {
 		t.Errorf("CacheCreation = %+v, want %+v", got, want)

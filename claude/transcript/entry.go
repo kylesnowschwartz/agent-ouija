@@ -70,6 +70,10 @@ type Entry struct {
 	// uuid — parse them with ParseEntryLenient, not ParseEntry.
 	CustomTitle string `json:"customTitle"`
 	Message     struct {
+		// ID is the API message id on assistant entries. Claude Code writes
+		// one response as several entries (one per content block) that share
+		// this id.
+		ID         string          `json:"id"`
 		Role       string          `json:"role"`
 		Content    json.RawMessage `json:"content"`
 		Model      string          `json:"model"`
