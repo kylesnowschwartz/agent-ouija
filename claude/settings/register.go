@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -28,28 +29,52 @@ func (h HookCommand) legacyString() string {
 	return h.Command + " " + strings.Join(h.Args, " ")
 }
 
+// hookGroup and hookEntry are the shape RegisterHooks writes for a new
+// registration. Field order is the order Claude Code itself writes.
+type hookGroup struct {
+	Hooks []hookEntry `json:"hooks"`
+}
+
+type hookEntry struct {
+	Type    string   `json:"type"`
+	Command string   `json:"command"`
+	Args    []string `json:"args,omitempty"`
+	Async   bool     `json:"async,omitempty"`
+}
+
 // RegisterHooks patches the settings.json at path to register the given
 // hook commands, creating the file if needed. Returns the events that were
-// newly registered; (nil, nil) when everything was already present.
+// newly registered; (nil, nil) when everything was already present, in
+// which case the file is not written.
 //
 // Registration is idempotent against BOTH serialization forms: an existing
 // entry matches if its command equals the legacy shell string
 // ("cmd arg1 arg2") or if it is exec-form with equal command and args.
-// The write is atomic (temp file + rename).
+//
+// The rewrite keeps the file's key order and every value it does not
+// change byte for byte, then re-indents with two spaces and no HTML
+// escaping. A new event goes at the end of "hooks"; a new group for an
+// existing event goes at the end of that event's array. The write is
+// atomic (temp file + rename).
 func RegisterHooks(path string, cmds []HookCommand) ([]string, error) {
-	settings, err := readSettingsMap(path)
+	settings, err := readSettings(path)
 	if err != nil {
 		return nil, err
 	}
 
-	hooksMap := ensureHooksMap(settings)
+	hooks, err := hooksObject(settings)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
 
 	var added []string
 	for _, h := range cmds {
-		if hasHookCommand(hooksMap, h) {
+		if hasHookCommand(hooks, h) {
 			continue
 		}
-		appendHook(hooksMap, h)
+		if err := appendHook(hooks, h); err != nil {
+			return nil, err
+		}
 		added = append(added, h.Event)
 	}
 
@@ -57,59 +82,67 @@ func RegisterHooks(path string, cmds []HookCommand) ([]string, error) {
 		return nil, nil
 	}
 
-	if err := writeSettingsMap(path, settings); err != nil {
+	encodedHooks, err := hooks.encode()
+	if err != nil {
+		return nil, fmt.Errorf("encode hooks: %w", err)
+	}
+	settings.set("hooks", encodedHooks)
+
+	if err := writeSettings(path, settings); err != nil {
 		return nil, err
 	}
 	return added, nil
 }
 
-// readSettingsMap reads and parses a settings.json. Returns an empty map if
-// the file doesn't exist; returns an error for other read/parse failures.
-func readSettingsMap(path string) (map[string]any, error) {
+// readSettings reads and parses a settings.json. Returns an empty object if
+// the file doesn't exist; returns an error for other read/parse failures,
+// including a file whose top level is not a JSON object.
+func readSettings(path string) (*jsonObject, error) {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return make(map[string]any), nil
+		return &jsonObject{}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 
-	var settings map[string]any
-	if err := json.Unmarshal(data, &settings); err != nil {
+	settings := &jsonObject{}
+	if err := json.Unmarshal(data, settings); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 	return settings, nil
 }
 
-// ensureHooksMap returns the "hooks" sub-map from settings, creating it if absent.
-func ensureHooksMap(settings map[string]any) map[string]any {
-	v, ok := settings["hooks"]
-	if !ok {
-		m := make(map[string]any)
-		settings["hooks"] = m
-		return m
+// hooksObject returns the decoded "hooks" object from settings. An absent
+// "hooks" key, or one holding something other than an object, yields an
+// empty object that replaces it when written back.
+func hooksObject(settings *jsonObject) (*jsonObject, error) {
+	hooks := &jsonObject{}
+	raw, ok := settings.get("hooks")
+	if !ok || jsonKind(raw) != '{' {
+		return hooks, nil
 	}
-	if m, ok := v.(map[string]any); ok {
-		return m
+	if err := json.Unmarshal(raw, hooks); err != nil {
+		return nil, fmt.Errorf("hooks: %w", err)
 	}
-	// Unexpected type — overwrite with an empty map.
-	m := make(map[string]any)
-	settings["hooks"] = m
-	return m
+	return hooks, nil
 }
 
-// hasHookCommand checks whether the hooks map already contains a matching
+// hasHookCommand checks whether the hooks object already contains a matching
 // hook for the given command. The Claude Code hooks schema is:
 //
 //	"EventName": [{"hooks": [{"type": "command", "command": "...", "args": [...]}]}]
-func hasHookCommand(hooksMap map[string]any, h HookCommand) bool {
-	arr, ok := hooksMap[h.Event]
-	if !ok {
+//
+// An event value that is not an array, and entries of any other shape,
+// never match.
+func hasHookCommand(hooks *jsonObject, h HookCommand) bool {
+	raw, ok := hooks.get(h.Event)
+	if !ok || jsonKind(raw) != '[' {
 		return false
 	}
-	entries, ok := arr.([]any)
-	if !ok {
-		return false
+	var entries []any
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return false // unreachable: raw is a valid JSON array
 	}
 	legacy := h.legacyString()
 	for _, entry := range entries {
@@ -117,11 +150,7 @@ func hasHookCommand(hooksMap map[string]any, h HookCommand) bool {
 		if !ok {
 			continue
 		}
-		innerArr, ok := em["hooks"]
-		if !ok {
-			continue
-		}
-		innerHooks, ok := innerArr.([]any)
+		innerHooks, ok := em["hooks"].([]any)
 		if !ok {
 			continue
 		}
@@ -160,48 +189,46 @@ func argsMatch(v any, want []string) bool {
 	return true
 }
 
-// appendHook adds a new exec-form hook entry for the given command.
-func appendHook(hooksMap map[string]any, h HookCommand) {
-	args := make([]any, len(h.Args))
-	for i, a := range h.Args {
-		args[i] = a
-	}
-	inner := map[string]any{
-		"type":    "command",
-		"command": h.Command,
-	}
-	if len(args) > 0 {
-		inner["args"] = args
-	}
-	if h.Async {
-		inner["async"] = true
-	}
-	entry := map[string]any{
-		"hooks": []any{inner},
+// appendHook adds a new exec-form hook group for the given command at the
+// end of its event's array. Existing groups keep their bytes; an event
+// value that is not an array is replaced by a one-group array.
+func appendHook(hooks *jsonObject, h HookCommand) error {
+	group, err := marshalUnescaped(hookGroup{Hooks: []hookEntry{{
+		Type:    "command",
+		Command: h.Command,
+		Args:    h.Args,
+		Async:   h.Async,
+	}}})
+	if err != nil {
+		return fmt.Errorf("encode %s hook: %w", h.Event, err)
 	}
 
-	existing, ok := hooksMap[h.Event]
-	if !ok {
-		hooksMap[h.Event] = []any{entry}
-		return
+	var groups []json.RawMessage
+	if raw, ok := hooks.get(h.Event); ok && jsonKind(raw) == '[' {
+		if err := json.Unmarshal(raw, &groups); err != nil {
+			return fmt.Errorf("hooks.%s: %w", h.Event, err)
+		}
 	}
-	if arr, ok := existing.([]any); ok {
-		hooksMap[h.Event] = append(arr, entry)
-	} else {
-		hooksMap[h.Event] = []any{entry}
+	groups = append(groups, group)
+
+	encoded, err := marshalUnescaped(groups)
+	if err != nil {
+		return fmt.Errorf("encode %s hooks: %w", h.Event, err)
 	}
+	hooks.set(h.Event, encoded)
+	return nil
 }
 
-// writeSettingsMap writes the settings map back to disk atomically (temp
-// file + rename) with readable formatting. settings.json holds secrets and
-// is read concurrently by Claude Code — a partial write must never be
-// observable.
+// writeSettings writes settings back to disk atomically (temp file +
+// rename), indented with two spaces, with a trailing newline and without
+// HTML escaping. settings.json holds secrets and is read concurrently by
+// Claude Code — a partial write must never be observable.
 //
 // The rename targets the symlink-resolved path (a dotfiles-managed
 // settings.json must keep pointing at its repo copy, and the repo copy is
 // what must change), and the replacement file keeps the existing file's
 // permissions (a hardened 0600 must not silently widen to 0644).
-func writeSettingsMap(path string, settings map[string]any) error {
+func writeSettings(path string, settings *jsonObject) error {
 	target := path
 	if resolved, err := filepath.EvalSymlinks(path); err == nil {
 		target = resolved
@@ -216,14 +243,18 @@ func writeSettingsMap(path string, settings map[string]any) error {
 		return fmt.Errorf("create settings directory: %w", err)
 	}
 
-	data, err := json.MarshalIndent(settings, "", "  ")
+	compact, err := settings.encode()
 	if err != nil {
-		return fmt.Errorf("marshal settings: %w", err)
+		return fmt.Errorf("encode settings: %w", err)
 	}
-	data = append(data, '\n')
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, compact, "", "  "); err != nil {
+		return fmt.Errorf("indent settings: %w", err)
+	}
+	buf.WriteByte('\n')
 
 	tmp := target + ".tmp"
-	if err := os.WriteFile(tmp, data, mode); err != nil {
+	if err := os.WriteFile(tmp, buf.Bytes(), mode); err != nil {
 		return fmt.Errorf("write %s: %w", tmp, err)
 	}
 	if err := os.Rename(tmp, target); err != nil {

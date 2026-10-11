@@ -97,12 +97,21 @@ func TestRegisterHooks_FreshExecForm(t *testing.T) {
 		t.Errorf("added %d hooks, want %d", len(added), len(testHooks))
 	}
 
-	hooksMap := readHooksMap(t, path)
+	settings, err := readSettings(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hooks, err := hooksObject(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, h := range testHooks {
-		if !hasHookCommand(hooksMap, h) {
+		if !hasHookCommand(hooks, h) {
 			t.Errorf("hook %s not registered", h.Event)
 		}
 	}
+
+	hooksMap := readHooksMap(t, path)
 
 	// Verify the exec form was written (command + args), not a shell string.
 	entries := hooksMap["PermissionRequest"].([]any)
