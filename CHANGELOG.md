@@ -5,6 +5,16 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.11.0 — 2026-10-11
+
+Additive only.
+
+- `claude/hooks`: `Payload.AgentID` and `Payload.AgentType` decode the
+  `agent_id` and `agent_type` fields Claude Code adds to hooks fired inside
+  a subagent. Those hooks carry the parent session's `session_id`, so
+  `AgentID` is how to tell them from main-session hooks, which leave both
+  empty. `Payload.IsSubagent` reports whether `AgentID` is set.
+
 ## v1.10.1 — 2026-10-11
 
 Fix only, no API change.
