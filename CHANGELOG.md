@@ -5,6 +5,19 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.10.1 — 2026-10-11
+
+Fix only, no API change.
+
+- `claude/settings`: `RegisterHooks` keeps the file's key order and the
+  original text of every value it does not change, and no longer
+  HTML-escapes `<`, `>` and `&`. A new event goes at the end of `hooks`,
+  a missing `hooks` key at the end of the file. On a 2-space-indented
+  settings.json, registering a hook changes only the lines it adds (plus
+  the comma JSON needs on the line before them). The rewrite used to sort
+  every key alphabetically, so one new hook could rewrite a
+  dotfiles-managed file end to end.
+
 ## v1.10.0 — 2026-10-10
 
 Additive only.
