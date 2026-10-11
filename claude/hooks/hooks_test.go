@@ -23,6 +23,37 @@ func TestDecode(t *testing.T) {
 	}
 }
 
+func TestDecode_SubagentHook(t *testing.T) {
+	doc := `{"hook_event_name":"PostToolUse","session_id":"parent-s1","agent_id":"a2a8ce650582eee46","agent_type":"general-purpose","tool_name":"Read"}`
+	p, err := Decode(strings.NewReader(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.AgentID != "a2a8ce650582eee46" || p.AgentType != "general-purpose" {
+		t.Errorf("agent fields = %q, %q", p.AgentID, p.AgentType)
+	}
+	if p.SessionID != "parent-s1" {
+		t.Errorf("SessionID = %q, want parent session", p.SessionID)
+	}
+	if !p.IsSubagent() {
+		t.Error("IsSubagent = false for subagent hook")
+	}
+}
+
+func TestDecode_MainSessionHookHasNoAgent(t *testing.T) {
+	doc := `{"hook_event_name":"PostToolUse","session_id":"s1","tool_name":"Read"}`
+	p, err := Decode(strings.NewReader(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.AgentID != "" || p.AgentType != "" {
+		t.Errorf("agent fields = %q, %q, want empty", p.AgentID, p.AgentType)
+	}
+	if p.IsSubagent() {
+		t.Error("IsSubagent = true for main-session hook")
+	}
+}
+
 func TestDecode_Invalid(t *testing.T) {
 	if _, err := Decode(strings.NewReader(`{`)); err == nil {
 		t.Error("expected error for invalid JSON")

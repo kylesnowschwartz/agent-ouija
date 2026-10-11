@@ -42,6 +42,13 @@ type Payload struct {
 	// Notification.
 	Message string `json:"message"`
 
+	// AgentID and AgentType are set only on hooks fired inside a subagent
+	// (e.g. "a2a8ce650582eee46" and "general-purpose"). Those hooks carry
+	// the parent session's session_id; both are empty for main-session
+	// hooks.
+	AgentID   string `json:"agent_id"`
+	AgentType string `json:"agent_type"`
+
 	// Stop / SubagentStop.
 	StopHookActive bool `json:"stop_hook_active"`
 
@@ -75,6 +82,12 @@ func (p Payload) EffectiveSessionID() string {
 		return p.SessionID
 	}
 	return os.Getenv("CLAUDE_CODE_SESSION_ID")
+}
+
+// IsSubagent reports whether the hook fired inside a subagent rather than
+// the main session.
+func (p Payload) IsSubagent() bool {
+	return p.AgentID != ""
 }
 
 // TerminalSequenceOutput is a hook-output document carrying a raw terminal
