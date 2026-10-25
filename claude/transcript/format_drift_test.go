@@ -55,6 +55,27 @@ func TestClassify_UnknownEntryTypesDropped(t *testing.T) {
 	}
 }
 
+func TestClassify_APIRequestEntriesDropped(t *testing.T) {
+	// Claude Code 2.1.300+ records each API request in the session file.
+	// api-request-blob carries a message with role "user" and real text
+	// content, so it must drop on its entry type, never surface as a turn.
+	lines := []string{
+		`{"type":"api-request-shape","sessionId":"s1","shapeHash":"3fe7","timestamp":"2026-10-16T02:43:27.020Z","version":"2.1.310","shape":{"system":[{"type":"text","text":"You are a Claude agent."}],"tools":[]}}`,
+		`{"type":"api-request-blob","sessionId":"s1","hash":"77fc","message":{"role":"user","content":[{"type":"text","text":"Run echo drift-canary"}]}}`,
+		`{"type":"api-request","sessionId":"s1","id":"4983","base":"4982","timestamp":"2026-10-16T02:43:27.020Z","version":"2.1.310","querySource":"sdk","shapeHash":"3fe7","params":{"model":"claude-haiku-4-5-20251001","max_tokens":32000},"keep":0,"tail":["77fc"],"cacheControl":[],"requestDigest":"47d4"}`,
+	}
+	for _, line := range lines {
+		e, ok := transcript.ParseEntryLenient([]byte(line))
+		if !ok {
+			t.Errorf("line should parse leniently: %s", line)
+			continue
+		}
+		if msg, ok := transcript.Classify(e); ok {
+			t.Errorf("entry type %q should be dropped, got %T", e.Type, msg)
+		}
+	}
+}
+
 func TestClassify_EmptyThinkingCountedButNotEmitted(t *testing.T) {
 	// Opus 4.7+/Claude 5 transcripts persist thinking as
 	// {"thinking":"","signature":"..."} — the count stays truthful but no

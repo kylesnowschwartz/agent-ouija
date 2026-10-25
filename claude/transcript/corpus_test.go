@@ -14,8 +14,8 @@ import (
 )
 
 // knownTopLevelKeys is the maintained allowlist of top-level JSONL entry
-// keys. Seeded empirically from a 1736-file live corpus (Claude Code
-// through 2.1.283, 2026-09). A NEW key appearing here is exactly the
+// keys. Seeded empirically from a 5593-file live corpus (Claude Code
+// through 2.1.310, 2026-10). A NEW key appearing here is exactly the
 // schema-drift signal this test exists to catch: decide whether the
 // library must model it, then add it deliberately.
 var knownTopLevelKeys = map[string]bool{
@@ -65,8 +65,9 @@ var knownTopLevelKeys = map[string]bool{
 	// Entry type file-history-delta contains snapshot tracking details.
 	"trackingPath": true, "snapshotMessageId": true, "backup": true,
 
-	// Entry type queue-operation contains an operation reason.
-	"reason": true,
+	// Entry type queue-operation contains an operation reason and the
+	// queued command's delivery identifiers.
+	"reason": true, "commandUuid": true, "deliveryId": true,
 
 	// Entry type atis-latch contains the latch value.
 	"atis": true,
@@ -77,11 +78,33 @@ var knownTopLevelKeys = map[string]bool{
 	// Entry type continued-in contains the destination session identifier.
 	"continuedInSessionId": true,
 
+	// Entry type dev-mods contains the session's mod folder.
+	"folder": true,
+
+	// Entry type api-request records one API request as a delta against
+	// an earlier request (base, keep, tail) plus its parameters.
+	"id": true, "base": true, "keep": true, "tail": true,
+	"params": true, "querySource": true, "cacheControl": true,
+	"requestDigest": true,
+
+	// Entry types api-request and api-request-shape contain the system
+	// prompt and tool shape, keyed by its hash.
+	"shapeHash": true, "shape": true,
+
+	// Entry type api-request-blob contains one content-addressed request
+	// message.
+	"hash": true,
+
+	// Workflow journal entries contain the agent's label and phase.
+	"label": true, "phase": true,
+
 	// Assistant entries contain response lifecycle details.
 	"effort": true, "apiBlockIndex": true, "isAbortedMidStream": true,
 	"truncatedAfterOutput": true, "supersedesUuids": true,
 	"perTurnEffort": true, "serverClassifierRequest": true,
 	"wireToolInputs": true, "wireIngestContext": true,
+	"requestRef": true, "requestedModel": true,
+	"thinkingDisplay": true, "thinkingDurationMs": true,
 
 	// User entries contain turn and scheduling details.
 	"turnCompanion": true, "queueSkipAttachments": true,
@@ -89,9 +112,15 @@ var knownTopLevelKeys = map[string]bool{
 	"interruptedByShutdown": true, "scheduledTaskId": true,
 	"scheduledFireId": true, "turnOrigin": true,
 	"serverClassifierContext": true, "queueOrigin": true,
+	"permissionDecision": true, "turnPosition": true, "sandboxed": true,
+	"queueSkipSlashCommands": true, "queueTranscriptOnly": true,
+	"summarizedTurnPromptUuids": true, "interruptedBySendNow": true,
+	"refusedMessageId": true, "joinedNoticeLengths": true,
+	"joinedNoticeOwn": true, "joinedNoticeRunIds": true,
 
 	// Attachment entries contain rendered injected text.
-	"rendered": true, "renderedInHumanTurn": true,
+	"rendered": true, "renderedInHumanTurn": true, "renderedRole": true,
+	"renderedBesideToolResult": true,
 
 	// System subtype local_command contains command invocation details.
 	"commandRun": true,
@@ -124,6 +153,10 @@ var knownMessageKeys = map[string]bool{
 
 	// Assistant messages contain request input transformations.
 	"input_transformations": true,
+
+	// api-request-blob messages contain request output and clearing
+	// settings.
+	"output_config": true, "clear_at": true,
 }
 
 // TestCorpus is the gated schema-drift detector. Point CLAUDE_CORPUS_DIR
