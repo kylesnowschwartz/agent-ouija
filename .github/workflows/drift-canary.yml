@@ -39,11 +39,14 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code@latest && claude --version
 
       - name: Generate a fresh transcript
+        # The `haiku` alias resolves to the newest Haiku that this Claude
+        # Code release knows, so the canary tracks the current model
+        # family instead of a pinned snapshot.
         env:
           CLAUDE_CONFIG_DIR: ${{ runner.temp }}/claude
         run: |
           claude -p "Run \`echo drift-canary\` with your Bash tool, then reply with exactly one word: done." \
-            --model claude-haiku-4-5-20251001 \
+            --model haiku \
             --allowedTools "Bash(echo:*)"
 
       - name: Transcript actually exists
