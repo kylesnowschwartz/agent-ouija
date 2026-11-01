@@ -19,6 +19,18 @@ func TestCategorizeToolName(t *testing.T) {
 		{"Skill", CategoryTask},
 		{"WebFetch", CategoryWeb},
 		{"WebSearch", CategoryWeb},
+		{"Agent", CategoryTask},
+		{"Workflow", CategoryTask},
+		{"SendMessage", CategoryTask},
+		{"SubagentHandback", CategoryTask},
+		{"ListAgents", CategoryTask},
+		{"TaskStop", CategoryTask},
+
+		// MCP tools
+		{"mcp__claude_ai_Slack__slack_read_channel", CategoryTool},
+		{"mcp__sc-mods__show_image", CategoryTool},
+		{"mcp__", CategoryTool},
+		{"mcp_single_underscore", CategoryOther},
 
 		// Codex tools
 		{"shell_command", CategoryBash},

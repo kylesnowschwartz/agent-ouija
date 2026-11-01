@@ -1,5 +1,7 @@
 package tools
 
+import "strings"
+
 // ToolCategory classifies tool calls into broad functional groups.
 // Used by the TUI to assign per-category icons and colors.
 type ToolCategory string
@@ -12,7 +14,7 @@ const (
 	CategoryGrep  ToolCategory = "Grep"
 	CategoryGlob  ToolCategory = "Glob"
 	CategoryTask  ToolCategory = "Task"
-	CategoryTool  ToolCategory = "Tool" // MCP tools
+	CategoryTool  ToolCategory = "Tool" // MCP tools (mcp__<server>__<tool>)
 	CategoryWeb   ToolCategory = "Web"  // WebFetch, WebSearch
 	CategoryOther ToolCategory = "Other"
 )
@@ -23,6 +25,10 @@ const (
 // Includes multi-agent aliases (Codex, Gemini, OpenCode, Copilot, Cursor)
 // for forward compatibility.
 func CategorizeToolName(name string) ToolCategory {
+	// Claude Code names every MCP tool mcp__<server>__<tool>.
+	if strings.HasPrefix(name, "mcp__") {
+		return CategoryTool
+	}
 	switch name {
 	// Claude Code tools
 	case "Read":
@@ -38,6 +44,10 @@ func CategorizeToolName(name string) ToolCategory {
 	case "Glob":
 		return CategoryGlob
 	case "Task", "Agent", "Skill", "Workflow":
+		return CategoryTask
+	// Claude Code agent coordination: messaging another agent, a subagent
+	// handing its result back, listing agents, stopping a background task.
+	case "SendMessage", "SubagentHandback", "ListAgents", "TaskStop":
 		return CategoryTask
 	case "WebFetch", "WebSearch":
 		return CategoryWeb

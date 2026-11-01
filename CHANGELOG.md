@@ -5,6 +5,17 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.12.0 — 2026-11-01
+
+Additive only. No API change; some tool names move out of `CategoryOther`.
+
+- `claude/tools`: `CategorizeToolName` returns `CategoryTool` for every
+  MCP tool (`mcp__<server>__<tool>`), which before fell into
+  `CategoryOther`. It returns `CategoryTask` for Claude Code's agent
+  coordination tools: `SendMessage`, `SubagentHandback`, `ListAgents` and
+  `TaskStop`. Consumers that draw `CategoryOther` and `CategoryTool` the
+  same way see no change for MCP tools.
+
 ## v1.11.0 — 2026-10-11
 
 Additive only.
