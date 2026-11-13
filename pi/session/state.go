@@ -13,11 +13,12 @@ import (
 type Status int
 
 const (
-	// None means the session holds no user, assistant or toolResult
-	// message yet.
+	// None means the session holds no conversational message yet (see
+	// TrailingState).
 	None Status = iota
 	// Working means the last conversational message is a user message, a
-	// toolResult, or an assistant message with stop reason "toolUse": the
+	// custom_message entry, a toolResult, or an assistant message with
+	// stop reason "toolUse": the
 	// model or a tool produces more output next.
 	Working
 	// Done means the last conversational message is an assistant message
@@ -70,7 +71,7 @@ type State struct {
 	StopReason string
 	// PendingToolCalls are the tool calls of the last assistant message
 	// that have no toolResult yet, in call order. Set only when Status is
-	// Working.
+	// Working and no user message follows that assistant message.
 	PendingToolCalls []ToolCall
 	// LastMessageAt is the timestamp of the last conversational message
 	// entry; zero when there is none or it is unparseable.
@@ -85,8 +86,11 @@ const (
 
 // TrailingState reads the end of the session file at path and returns
 // its trailing State. Conversational messages are message entries with
-// role user, assistant or toolResult; every other entry type and role
-// (system, bashExecution, custom, session_info, ...) is skipped. A
+// role user, assistant or toolResult, and custom_message entries, which
+// count as user messages: an extension's custom message can start a
+// model turn, and the file does not record whether it did. Every other
+// entry type and role (system, bashExecution, custom, session_info, ...)
+// is skipped. A
 // bashExecution message records a shell command the user ran directly;
 // it starts no model turn, so it leaves the status unchanged. An
 // unparseable line, such as a partly written last line, is skipped.
@@ -123,16 +127,27 @@ func foldTail(lines [][]byte) (state State, complete bool) {
 	)
 	for i := len(lines) - 1; i >= 0; i-- {
 		e, ok := ParseEntry(lines[i])
-		if !ok || e.Type != "message" {
+		if !ok {
+			continue
+		}
+		role := e.Message.Role
+		switch e.Type {
+		case "message":
+		case "custom_message":
+			role = "user"
+		default:
 			continue
 		}
 		m := e.Message
-		switch m.Role {
+		switch role {
 		case "user":
+			// A user turn ends the backward scan: tool calls older than it
+			// belong to a finished turn.
 			if !found {
-				ts, _ := time.Parse(time.RFC3339Nano, e.Timestamp)
-				return State{Status: Working, LastMessageAt: ts}, true
+				state.Status = Working
+				state.LastMessageAt, _ = time.Parse(time.RFC3339Nano, e.Timestamp)
 			}
+			return state, true
 		case "toolResult":
 			if !found {
 				found = true

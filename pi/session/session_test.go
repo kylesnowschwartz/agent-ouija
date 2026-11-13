@@ -225,3 +225,41 @@ func TestReadSummary_Incremental(t *testing.T) {
 		t.Fatalf("second = %+v, %v", sum, err)
 	}
 }
+
+func TestTrailingState_UserEndsBackwardScan(t *testing.T) {
+	p := writeLines(t, header, user("u", "2026-11-13T10:00:01.000Z", "hi"),
+		assistant("a", "2026-11-13T10:00:02.000Z", "toolUse", call("c1", "bash")+call("c2", "bash")),
+		result("r1", "2026-11-13T10:00:03.000Z", "c1"),
+		user("u2", "2026-11-13T10:00:04.000Z", "steer"),
+		result("r2", "2026-11-13T10:00:05.000Z", "x"))
+	got, err := session.TrailingState(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertState(t, got, session.State{Status: session.Working, LastMessageAt: mustTime("2026-11-13T10:00:05.000Z")})
+}
+
+func TestTrailingState_CustomMessageStartsTurn(t *testing.T) {
+	cm := `{"type":"custom_message","customType":"ext.a","content":"go","display":true,"id":"m","parentId":"a","timestamp":"2026-11-13T10:00:03.000Z"}`
+	p := writeLines(t, header, user("u", "2026-11-13T10:00:01.000Z", "hi"), assistant("a", "2026-11-13T10:00:02.000Z", "stop", ""), cm)
+	got, err := session.TrailingState(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertState(t, got, session.State{Status: session.Working, LastMessageAt: mustTime("2026-11-13T10:00:03.000Z")})
+}
+
+func TestReadToolCalls_SkipsCallsPiDoesNotRun(t *testing.T) {
+	p := writeLines(t, header,
+		assistant("a1", "2026-11-13T10:00:01.000Z", "aborted", call("c1", "bash")),
+		assistant("a2", "2026-11-13T10:00:02.000Z", "error", call("c2", "bash")),
+		assistant("a3", "2026-11-13T10:00:03.000Z", "length", call("c3", "bash")),
+		assistant("a4", "2026-11-13T10:00:04.000Z", "toolUse", call("c4", "bash")))
+	calls, _, err := session.ReadToolCalls(p, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 1 || calls[0].ID != "c4" {
+		t.Fatalf("calls = %+v, want only c4", calls)
+	}
+}

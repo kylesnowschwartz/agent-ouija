@@ -13,7 +13,12 @@ import (
 
 // ReadToolCalls returns the tool calls in the assistant messages written
 // from offset on, in file order, plus the offset to pass on the next
-// call. Each call carries its assistant entry's timestamp.
+// call. Each call carries its assistant entry's timestamp. Only calls Pi
+// runs are returned: an assistant message with stop reason "error" or
+// "aborted" ends the run without running its tool calls, and one with
+// "length" may carry truncated arguments, so Pi answers its calls with
+// error results instead of running them. Calls in such messages are
+// skipped.
 //
 // Partial-last-line rule: an unterminated last line is always deferred —
 // it is neither returned nor counted in next, even when it parses — so
@@ -29,6 +34,10 @@ func ReadToolCalls(path string, offset int64) (calls []ToolCall, next int64, err
 		}
 		e, ok := ParseEntry(line)
 		if !ok || e.Type != "message" || e.Message.Role != "assistant" {
+			return
+		}
+		switch e.Message.StopReason {
+		case "error", "aborted", "length":
 			return
 		}
 		ts, _ := time.Parse(time.RFC3339Nano, e.Timestamp)
