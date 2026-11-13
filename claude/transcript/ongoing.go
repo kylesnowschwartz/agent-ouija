@@ -60,7 +60,8 @@ func IsShutdownApproval(toolName string, toolInput json.RawMessage) bool {
 // A session is ongoing if either:
 //
 //  1. There's AI activity (thinking, tool_use, tool_result) after the last
-//     "ending event" (text output, interruption, ExitPlanMode, shutdown approval).
+//     "ending event" (text output, interruption, ExitPlanMode, shutdown approval,
+//     SubagentHandback).
 //  2. Any tool call is still awaiting a result (pending tool calls).
 //
 // Condition 2 catches team sessions where the parent writes text output after
@@ -123,7 +124,9 @@ func IsOngoing(chunks []Chunk) bool {
 			case ItemToolCall:
 				if item.ToolName == "ExitPlanMode" {
 					activities = append(activities, actExitPlanMode)
-				} else if IsShutdownApproval(item.ToolName, item.ToolInput) {
+				} else if item.ToolName == "SubagentHandback" || IsShutdownApproval(item.ToolName, item.ToolInput) {
+					// A shutdown approval and a SubagentHandback each end the
+					// run, so the call and its tool_result are ending events.
 					shutdownToolIDs[item.ToolID] = true
 					activities = append(activities, actInterruption)
 				} else {

@@ -426,3 +426,32 @@ func TestIsOngoing_PendingAgentToolCall(t *testing.T) {
 		t.Error("should be ongoing: Agent tool call a2 has no result")
 	}
 }
+
+// A subagent run ends with text, a SubagentHandback call, and its
+// tool_result. The handback ends the run, so the transcript is not ongoing.
+func TestIsOngoing_SubagentHandbackIsEndingEvent(t *testing.T) {
+	t0 := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	chunks := transcript.BuildChunks([]transcript.ClassifiedMsg{
+		transcript.AIMsg{
+			Timestamp: t0,
+			Model:     "claude-opus-4-6",
+			Blocks:    []transcript.ContentBlock{{Type: "text", Text: "All done."}},
+		},
+		transcript.AIMsg{
+			Timestamp: t0.Add(time.Second),
+			Model:     "claude-opus-4-6",
+			ToolCalls: []transcript.ToolCall{{ID: "h1", Name: "SubagentHandback"}},
+			Blocks: []transcript.ContentBlock{
+				{Type: "tool_use", ToolID: "h1", ToolName: "SubagentHandback", ToolInput: json.RawMessage(`{"message":"report"}`)},
+			},
+		},
+		transcript.AIMsg{
+			Timestamp: t0.Add(2 * time.Second),
+			IsMeta:    true,
+			Blocks:    []transcript.ContentBlock{{Type: "tool_result", ToolID: "h1", Content: "delivered"}},
+		},
+	})
+	if transcript.IsOngoing(chunks) {
+		t.Error("SubagentHandback with its result should end the run")
+	}
+}
