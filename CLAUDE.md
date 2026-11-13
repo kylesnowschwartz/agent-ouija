@@ -52,8 +52,10 @@ BuildChunks` pipeline is never squeezed through an interface.
 - **`go 1.25.5` directive, pinned.** tail-claude and tail-claude-hud
   build at 1.25.5; do not bump without checking all three consumers.
 - **Injected roots everywhere.** No `os.UserHomeDir()`/`os.Getwd()`
-  inside library logic; paths flow from `claudedir.Root`
-  (`claudedir.DefaultRoot()` is the one sanctioned convenience).
+  inside library logic; paths flow from each provider's `Root` type
+  (`claudedir.Root`, `codexdir.Root`, `pidir.Root`). The sanctioned
+  conveniences that read the environment and home folder are each
+  provider's `DefaultRoot()` and `pidir.SessionDirOverride()`.
 - **Two partial-last-line rules, on purpose.**
   `transcript.ReadSessionIncremental` keeps a parseable unterminated
   tail (tail-claude: resident watcher). `offsetstore` always defers it
