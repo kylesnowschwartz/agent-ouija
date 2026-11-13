@@ -5,6 +5,27 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## Unreleased
+
+Additive only.
+
+- `pi/pidir`: `Root` for the Pi coding agent's directory; `DefaultRoot`
+  honors `PI_CODING_AGENT_DIR`, `SessionDirOverride` reads
+  `PI_CODING_AGENT_SESSION_DIR` (a flat directory holding every cwd's
+  sessions).
+- `pi/discover`: `SessionDirForCwd` encodes a cwd into Pi's per-cwd
+  folder name; `DiscoverSessions` lists a folder's session files with
+  their header fields (id, cwd, start time, parent session), newest
+  first; `SessionIDFromPath` reads the id from a file name.
+- `pi/session`: `ParseEntry` decodes a session line; `TrailingState`
+  reads a bounded tail for the status (none, working, done, interrupted,
+  error), raw stop reason, pending tool calls and last message time;
+  `ReadToolCalls` and `ReadSummary` (session name, first prompt line)
+  read from a byte offset and always leave an unterminated last line for
+  the next read.
+- `pi`: `Provider` implements `sessions.Provider` over the per-cwd
+  folders and passes the `sessionstest` conformance suite.
+
 ## v1.14.0 — 2026-11-13
 
 Additive only, plus one fix to `transcript.IsOngoing`.

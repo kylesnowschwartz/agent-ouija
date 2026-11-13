@@ -1,9 +1,9 @@
 # agent-ouija
 
 A standalone, stdlib-only Go library for reading AI-agent session state
-off disk. Claude Code is the first (and currently only) provider; the
-thin provider-neutral core exists so future providers (codex, pi, ...)
-slot in without forcing Claude's fidelity through a lossy interface.
+off disk. Providers: Claude Code, Codex CLI and Pi; the thin
+provider-neutral core lets each slot in without forcing Claude's
+fidelity through a lossy interface.
 
 Consumers: tail-claude (TUI transcript reader), tail-claude-hud
 (statusline), gearshifter (tmux control deck).
@@ -40,6 +40,10 @@ BuildChunks` pipeline is never squeezed through an interface.
 | `claude/settings` | `Read` (model/effortLevel ONLY — file holds secrets, never log raw), MCP/hook introspection, `RegisterHooks` (exec-form, dual-form idempotent, atomic write) |
 | `claude/registry` | Live-session process registry + pane→session `Resolve` (injectable `ProcessTree`) |
 | `claude/statusline` | Full documented statusline stdin schema, `Raw` preserved |
+| `pi` | `pi.Provider` adapter implementing the core interfaces over the pi subpackages |
+| `pi/pidir` | `Root` type (`DefaultRoot` honors `PI_CODING_AGENT_DIR`), `SessionsDir`, `SessionDirOverride` (`PI_CODING_AGENT_SESSION_DIR`, a flat dir) |
+| `pi/discover` | `SessionDirForCwd` (lossy cwd folder encoding), `DiscoverSessions` (header line only), `SessionIDFromPath` |
+| `pi/session` | `Entry`/`ParseEntry`, bounded-tail `TrailingState` (status, pending tool calls), offset readers `ReadToolCalls` and `ReadSummary` (name, first prompt) with the always-defer partial-line rule |
 
 ## Hard rules
 
