@@ -461,7 +461,7 @@ func isUserNoise(raw json.RawMessage, contentStr string) bool {
 	}
 
 	// Interruption messages (string content or array with single text block).
-	if strings.HasPrefix(trimmed, "[Request interrupted by user") {
+	if strings.HasPrefix(trimmed, pat.InterruptedPrefix) {
 		return true
 	}
 	return isArrayInterruption(raw)
@@ -490,7 +490,7 @@ func isArrayInterruption(raw json.RawMessage) bool {
 	if err := json.Unmarshal(raw, &blocks); err != nil {
 		return false
 	}
-	if len(blocks) == 1 && blocks[0].Type == "text" && strings.HasPrefix(blocks[0].Text, "[Request interrupted by user") {
+	if len(blocks) == 1 && blocks[0].Type == "text" && strings.HasPrefix(blocks[0].Text, pat.InterruptedPrefix) {
 		return true
 	}
 	return false

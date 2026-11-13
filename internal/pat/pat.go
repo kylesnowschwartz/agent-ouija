@@ -78,3 +78,8 @@ var SystemOutputTags = []string{
 	BashStderrTag,
 	TaskNotificationTag,
 }
+
+// InterruptedPrefix opens the text Claude Code writes when the user
+// interrupts a turn: "[Request interrupted by user]" or
+// "[Request interrupted by user for tool use]".
+const InterruptedPrefix = "[Request interrupted by user"

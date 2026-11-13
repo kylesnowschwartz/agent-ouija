@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/kylesnowschwartz/agent-ouija/internal/pat"
 )
 
 // ToolUseBlock is a raw tool_use content block from an assistant message.
@@ -57,7 +59,7 @@ const (
 	rejectedContentPrefix = "The user doesn't want to "
 	// interruptedContentPrefix opens the tool_result content of a call the
 	// user interrupted ("[Request interrupted by user for tool use]").
-	interruptedContentPrefix = "[Request interrupted by user"
+	interruptedContentPrefix = pat.InterruptedPrefix
 
 	denialKindUserRejected = "user-rejected"
 	denialKindCancelled    = "cancelled"

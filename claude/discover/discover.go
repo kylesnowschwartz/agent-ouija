@@ -526,7 +526,7 @@ func scanSessionMetadata(path string) sessionMetadata {
 			continue
 		}
 
-		if transcript.IsCommandOutput(text) || strings.HasPrefix(text, "[Request interrupted by user") {
+		if transcript.IsCommandOutput(text) || strings.HasPrefix(text, pat.InterruptedPrefix) {
 			continue
 		}
 
@@ -706,7 +706,7 @@ func scanOngoingUser(e *metadataScanEntry, activityIndex *int,
 	// array unmarshal. Check them before attempting block parsing.
 	var text string
 	if err := json.Unmarshal(e.Message.Content, &text); err == nil {
-		if strings.HasPrefix(text, "[Request interrupted by user") {
+		if strings.HasPrefix(text, pat.InterruptedPrefix) {
 			// Interruption clears all pending tool calls — the process was killed.
 			for id := range pendingToolIDs {
 				delete(pendingToolIDs, id)
@@ -744,7 +744,7 @@ func scanOngoingUser(e *metadataScanEntry, activityIndex *int,
 				*activityIndex++
 			}
 		case "text":
-			if strings.HasPrefix(b.Text, "[Request interrupted by user") {
+			if strings.HasPrefix(b.Text, pat.InterruptedPrefix) {
 				// Interruption clears all pending tool calls.
 				for id := range pendingToolIDs {
 					delete(pendingToolIDs, id)
