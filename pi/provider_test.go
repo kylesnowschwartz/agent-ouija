@@ -73,3 +73,40 @@ func TestPiProvider_Ongoing(t *testing.T) {
 		})
 	}
 }
+
+func TestPiProvider_SkipsUnreadableFolder(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads chmod 000 folders")
+	}
+	root := pidir.Root(t.TempDir())
+	seed(t, root, 1, "/work/a", "", time.Now(), "")
+	seed(t, root, 2, "/work/b", "", time.Now(), "")
+	bad := discover.SessionDirForCwd(root.SessionsDir(), "/work/b")
+	if err := os.Chmod(bad, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(bad, 0o755) })
+	refs, err := pi.New(root).Discover(sessions.Query{})
+	if err != nil || len(refs) != 1 || refs[0].CWD != "/work/a" {
+		t.Fatalf("refs = %+v, err %v", refs, err)
+	}
+}
+
+func TestPiProvider_FollowsSymlinkedFolder(t *testing.T) {
+	root := pidir.Root(t.TempDir())
+	elsewhere := pidir.Root(t.TempDir())
+	seed(t, elsewhere, 1, "/work/a", "", time.Now(), "")
+	if err := os.MkdirAll(root.SessionsDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := discover.SessionDirForCwd(elsewhere.SessionsDir(), "/work/a")
+	if err := os.Symlink(target, discover.SessionDirForCwd(root.SessionsDir(), "/work/a")); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []sessions.Query{{}, {ProjectDir: "/work/a"}} {
+		refs, err := pi.New(root).Discover(q)
+		if err != nil || len(refs) != 1 {
+			t.Errorf("query %+v: refs = %+v, err %v", q, refs, err)
+		}
+	}
+}

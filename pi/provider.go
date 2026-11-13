@@ -44,9 +44,12 @@ func (p *Provider) Name() string { return "pi" }
 func (p *Provider) Root() pidir.Root { return p.root }
 
 // Discover implements sessions.Provider. A ProjectDir query reads only
-// that cwd's folder; otherwise every folder is read. Each listed file is
-// read in full once for its session name (session.ReadSummary) and its
-// tail once for its status (session.TrailingState).
+// that cwd's folder; otherwise every folder, including symlinked ones,
+// is read. Files are taken newest first, and each is read in full for
+// its session name (session.ReadSummary) and its tail for its status
+// (session.TrailingState) only until Limit refs are collected. An
+// unreadable folder is skipped and an unreadable file reports a zero
+// name and status, so one bad entry cannot hide the rest.
 func (p *Provider) Discover(q sessions.Query) ([]sessions.SessionRef, error) {
 	var dirs []string
 	if q.ProjectDir != "" {
@@ -57,44 +60,48 @@ func (p *Provider) Discover(q sessions.Query) ([]sessions.SessionRef, error) {
 			return nil, err
 		}
 		for _, e := range entries {
-			if e.IsDir() {
-				dirs = append(dirs, filepath.Join(p.root.SessionsDir(), e.Name()))
+			dir := filepath.Join(p.root.SessionsDir(), e.Name())
+			if info, err := os.Stat(dir); err == nil && info.IsDir() {
+				dirs = append(dirs, dir)
 			}
 		}
 	}
+
+	var files []discover.Session
+	for _, dir := range dirs {
+		found, err := discover.DiscoverSessions(dir)
+		if err != nil {
+			continue
+		}
+		for _, f := range found {
+			// The folder encoding is lossy; the header cwd decides.
+			if q.ProjectDir == "" || f.Cwd == q.ProjectDir {
+				files = append(files, f)
+			}
+		}
+	}
+	sort.SliceStable(files, func(i, j int) bool { return files[i].ModTime.After(files[j].ModTime) })
 
 	title := strings.ToLower(strings.TrimSpace(q.Title))
-	var refs []sessions.SessionRef
-	for _, dir := range dirs {
-		files, err := discover.DiscoverSessions(dir)
-		if err != nil {
-			return nil, err
+	refs := []sessions.SessionRef{}
+	for _, f := range files {
+		if q.Limit > 0 && len(refs) == q.Limit {
+			break
 		}
-		for _, f := range files {
-			// The folder encoding is lossy; the header cwd decides.
-			if q.ProjectDir != "" && f.Cwd != q.ProjectDir {
-				continue
-			}
-			sum, _, _ := session.ReadSummary(f.Path, 0, session.Summary{})
-			if title != "" && !strings.Contains(strings.ToLower(sum.Name), title) {
-				continue
-			}
-			state, _ := session.TrailingState(f.Path)
-			refs = append(refs, sessions.SessionRef{
-				Provider: p.Name(),
-				ID:       f.ID,
-				Path:     f.Path,
-				Title:    sum.Name,
-				CWD:      f.Cwd,
-				ModTime:  f.ModTime,
-				Ongoing:  state.Status == session.Working && time.Since(f.ModTime) <= ongoingStaleness,
-			})
+		sum, _, _ := session.ReadSummary(f.Path, 0, session.Summary{})
+		if title != "" && !strings.Contains(strings.ToLower(sum.Name), title) {
+			continue
 		}
-	}
-
-	sort.SliceStable(refs, func(i, j int) bool { return refs[i].ModTime.After(refs[j].ModTime) })
-	if q.Limit > 0 && len(refs) > q.Limit {
-		refs = refs[:q.Limit]
+		state, _ := session.TrailingState(f.Path)
+		refs = append(refs, sessions.SessionRef{
+			Provider: p.Name(),
+			ID:       f.ID,
+			Path:     f.Path,
+			Title:    sum.Name,
+			CWD:      f.Cwd,
+			ModTime:  f.ModTime,
+			Ongoing:  state.Status == session.Working && time.Since(f.ModTime) <= ongoingStaleness,
+		})
 	}
 	return refs, nil
 }
