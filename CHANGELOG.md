@@ -19,10 +19,12 @@ Additive only.
   first; `SessionIDFromPath` reads the id from a file name.
 - `pi/session`: `ParseEntry` decodes a session line; `TrailingState`
   reads a bounded tail for the status (none, working, done, interrupted,
-  error), raw stop reason, pending tool calls and last message time;
-  `ReadToolCalls` and `ReadSummary` (session name, first prompt line)
-  read from a byte offset and always leave an unterminated last line for
-  the next read.
+  error), raw stop reason, pending tool calls and last message time; an
+  extension's `custom_message` entry counts as a user message.
+  `ReadToolCalls` (only the calls Pi runs: none from messages stopped by
+  error, abort or output limit) and `ReadSummary` (session name, first
+  prompt line) read from a byte offset and always leave an unterminated
+  last line for the next read.
 - `pi`: `Provider` implements `sessions.Provider` over the per-cwd
   folders and passes the `sessionstest` conformance suite.
 
