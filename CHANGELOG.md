@@ -5,6 +5,15 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.13.0 — 2026-11-13
+
+Additive only.
+
+- `codex/rollout`: `Payload.Originator` decodes session_meta's `originator`,
+  the program that started the Codex session; consumers can tell a session
+  driven by an adapter (for example `@agentclientprotocol/codex-acp`) from
+  one the Codex CLI started. Empty when the rollout omits the field.
+
 ## v1.12.0 — 2026-11-01
 
 Additive only. No API change; some tool names move out of `CategoryOther`.
