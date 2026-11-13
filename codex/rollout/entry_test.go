@@ -39,6 +39,18 @@ func TestParseEntry(t *testing.T) {
 			want: rollout.Entry{Timestamp: "2026-07-10T01:00:00Z", Type: "session_meta", Payload: rollout.Payload{Cwd: "/work/proj", Source: rollout.Source{Kind: "cli", Raw: `"cli"`}}},
 		},
 		{
+			name: "session_meta originator and vscode source",
+			line: `{"timestamp":"t","type":"session_meta","payload":{"cwd":"/work/proj","originator":"@agentclientprotocol/codex-acp","source":"vscode"}}`,
+			ok:   true,
+			want: rollout.Entry{Timestamp: "t", Type: "session_meta", Payload: rollout.Payload{Cwd: "/work/proj", Originator: "@agentclientprotocol/codex-acp", Source: rollout.Source{Kind: "vscode", Raw: `"vscode"`}}},
+		},
+		{
+			name: "session_meta without originator",
+			line: `{"timestamp":"t","type":"session_meta","payload":{"cwd":"/work/proj","source":"cli"}}`,
+			ok:   true,
+			want: rollout.Entry{Timestamp: "t", Type: "session_meta", Payload: rollout.Payload{Cwd: "/work/proj", Source: rollout.Source{Kind: "cli", Raw: `"cli"`}}},
+		},
+		{
 			name: "session_meta object source",
 			line: `{"timestamp":"2026-07-10T01:00:00Z","type":"session_meta","payload":{"cwd":"/work/proj","source":{"subagent":{"other":"guardian"}}}}`,
 			ok:   true,

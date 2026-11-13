@@ -54,6 +54,12 @@ type Payload struct {
 	// started from.
 	Source Source `json:"source"`
 
+	// Originator is set on "session_meta" entries: the program that started
+	// the session, such as "codex_cli_rs" for the Codex CLI or
+	// "@agentclientprotocol/codex-acp" for a session an Agent Client
+	// Protocol adapter drives. It is "" when the rollout omits it.
+	Originator string `json:"originator"`
+
 	// Message is the text carried by event_msg agent_message payloads.
 	Message string `json:"message"`
 
