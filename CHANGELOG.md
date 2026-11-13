@@ -5,6 +5,25 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## v1.14.0 — 2026-11-13
+
+Additive only, plus one fix to `transcript.IsOngoing`.
+
+- `claude/agents`: `SubagentMeta.Finished` reports the sidecar's
+  `finished` key: true once the run has ended (normally, refused, or
+  failed); false while it runs, without a sidecar, and for a worker the
+  user stopped.
+- `claude/agents`: `SubagentMeta.Interrupted` is true when the
+  transcript's last entry is the user's "[Request interrupted by user"
+  message. It is read in the same bounded tail pass as `Model`.
+- `claude/agents`: `ReadFleetSteps(path, offset)` returns the fleet
+  plugin's worker steps (`FleetStepToolName` calls: id, timestamp, kind,
+  title, path) from a byte offset, plus the offset for the next read. An
+  unterminated last line is always left for the next read.
+- `claude/transcript`: fix — `IsOngoing` treats a `SubagentHandback` call
+  and its tool result as the end of the run, so a subagent that handed
+  back its report no longer reads as ongoing.
+
 ## v1.13.0 — 2026-11-13
 
 Additive only.

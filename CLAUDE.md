@@ -33,7 +33,7 @@ BuildChunks` pipeline is never squeezed through an interface.
 | `claude/claudedir` | `Root` type: path encoding (`EncodeProjectPath`), `ProjectDirFor`, `ListProjectDirs`, `SettingsPath`, `SessionsDir`, `DebugLogPath` |
 | `claude/transcript` | Lossless pipeline: `Entry`/`ParseEntry`/`ParseEntryLenient`, `Classify`, `BuildChunks`, `ExtractContentBlocks`, `ReadSession(Incremental)`, tail scans (`LastAssistantModel`), ongoing heuristics. Invariants: see `doc.go` |
 | `claude/discover` | Session discovery: `SessionInfo`, `DiscoverProjectSessions`, titles, cache, date grouping, `ProjectName` |
-| `claude/agents` | Subagent/team/workflow discovery + 4-phase linking (`DiscoverSubagents`, `DiscoverTeamSessions`, `LinkSubagents`, `ReconstructTeams`) PLUS `ScanSubagentMeta` — the metadata-only scan for sub-second tick consumers. Never call the full-parse variant on a tick |
+| `claude/agents` | Subagent/team/workflow discovery + 4-phase linking (`DiscoverSubagents`, `DiscoverTeamSessions`, `LinkSubagents`, `ReconstructTeams`) PLUS `ScanSubagentMeta` — the metadata-only scan for sub-second tick consumers, and `ReadFleetSteps` (fleet worker step calls by byte offset). Never call the full-parse variant on a tick |
 | `claude/tools` | Per-tool one-line summaries, taxonomy, truncation helpers |
 | `claude/debuglog` | `~/.claude/debug/*.txt` parsing + incremental reads |
 | `claude/hooks` | Hook stdin `Payload` (+ output shapes), `Raw` preserved |
