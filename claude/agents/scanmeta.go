@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kylesnowschwartz/agent-ouija/internal/pat"
 	"github.com/kylesnowschwartz/agent-ouija/jsonl"
 )
 
@@ -21,6 +22,19 @@ type SubagentMeta struct {
 	FirstTime   time.Time // first entry's timestamp; zero when unparseable
 	ModTime     time.Time // transcript file mtime
 	Size        int64     // transcript file size in bytes
+
+	// Finished is the sidecar's "finished" key. It is true once the run
+	// has ended (normally, refused, or failed). It is false while the run
+	// is in progress, when the sidecar is missing, and for a worker the
+	// user stopped. Claude Code removes the key when a finished agent
+	// receives a follow-up message and sets it again when that run ends.
+	Finished bool
+
+	// Interrupted is true when the last parseable entry in the bounded
+	// transcript tail is a user entry whose text starts with
+	// "[Request interrupted by user" (string content or text blocks).
+	// Any later assistant or tool line makes it false.
+	Interrupted bool
 }
 
 // ScanSubagentMeta scans {session}/subagents/ for agent transcripts and
@@ -81,51 +95,86 @@ func ScanSubagentMeta(sessionPath string) []SubagentMeta {
 		}
 
 		meta := readSidecarMeta(filepath.Join(subagentsDir, "agent-"+agentID+".meta.json"))
+		tail := scanTail(filepath.Join(subagentsDir, name))
 
 		agents = append(agents, SubagentMeta{
 			ID:          agentID,
 			AgentType:   meta.agentType,
 			Description: meta.description,
-			Model:       scanNewestModel(filepath.Join(subagentsDir, name)),
+			Model:       tail.model,
 			FirstTime:   first.timestamp,
 			ModTime:     info.ModTime(),
 			Size:        info.Size(),
+			Finished:    meta.finished,
+			Interrupted: tail.interrupted,
 		})
 	}
 
 	return agents
 }
 
-// modelScanBytes bounds scanNewestModel's reverse read. The model appears on
+// modelScanBytes bounds scanTail's reverse read. The model appears on
 // every assistant entry, so the newest one sits within the last few entries;
 // 32 KiB keeps the per-tick cost flat regardless of transcript size.
 const modelScanBytes = 32 * 1024
 
-// scanNewestModel returns the message.model of the newest assistant entry in
-// the bounded tail of a subagent transcript, or "" when none is present
-// (e.g. the agent has not produced an assistant turn yet). The sidecar
-// meta.json carries no model field, and the spawning tool_use input's model
-// param is absent unless the caller overrode it — the transcript is the only
-// authoritative source.
-func scanNewestModel(path string) string {
-	var found string
+// tailInfo holds what scanTail reads from a transcript's bounded tail.
+type tailInfo struct {
+	model       string
+	interrupted bool
+}
+
+// scanTail reads the bounded tail of a subagent transcript in one reverse
+// pass. model is the message.model of the newest assistant entry, or ""
+// when none is present (e.g. the agent has not produced an assistant turn
+// yet). The sidecar meta.json carries no model field, and the spawning
+// tool_use input's model param is absent unless the caller overrode it —
+// the transcript is the only authoritative source. interrupted reports
+// whether the newest parseable entry is a user interruption.
+func scanTail(path string) tailInfo {
+	var info tailInfo
+	first := true
 	_ = jsonl.ReverseScan(path, modelScanBytes, func(line []byte) bool {
 		var entry struct {
 			Type    string `json:"type"`
 			Message struct {
-				Model string `json:"model"`
+				Model   string          `json:"model"`
+				Content json.RawMessage `json:"content"`
 			} `json:"message"`
 		}
 		if json.Unmarshal(line, &entry) != nil {
 			return true
 		}
+		if first {
+			first = false
+			info.interrupted = entry.Type == "user" && isInterruption(entry.Message.Content)
+		}
 		if entry.Type == "assistant" && entry.Message.Model != "" {
-			found = entry.Message.Model
+			info.model = entry.Message.Model
 			return false
 		}
 		return true
 	})
-	return found
+	return info
+}
+
+// isInterruption reports whether user message content (a JSON string or
+// an array of content blocks) has a text starting with pat.InterruptedPrefix.
+func isInterruption(content json.RawMessage) bool {
+	var text string
+	if json.Unmarshal(content, &text) == nil {
+		return strings.HasPrefix(text, pat.InterruptedPrefix)
+	}
+	var blocks []pat.TextBlockJSON
+	if json.Unmarshal(content, &blocks) != nil {
+		return false
+	}
+	for _, b := range blocks {
+		if b.Type == "text" && strings.HasPrefix(b.Text, pat.InterruptedPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // firstEntryInfo holds the parsed results from a subagent JSONL's first line.
@@ -170,6 +219,7 @@ func scanFirstEntry(path string) firstEntryInfo {
 type sidecarMeta struct {
 	agentType   string
 	description string
+	finished    bool
 }
 
 // readSidecarMeta reads a .meta.json sidecar file. Returns a zero
@@ -182,11 +232,12 @@ func readSidecarMeta(path string) sidecarMeta {
 	var meta struct {
 		AgentType   string `json:"agentType"`
 		Description string `json:"description"`
+		Finished    bool   `json:"finished"`
 	}
 	if json.Unmarshal(data, &meta) != nil {
 		return sidecarMeta{}
 	}
-	return sidecarMeta{agentType: meta.AgentType, description: meta.Description}
+	return sidecarMeta{agentType: meta.AgentType, description: meta.Description, finished: meta.Finished}
 }
 
 // readFirstLine opens a file and returns its first newline-terminated line.
