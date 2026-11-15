@@ -105,6 +105,11 @@ var knownTopLevelKeys = map[string]bool{
 	"wireToolInputs": true, "wireIngestContext": true,
 	"requestRef": true, "requestedModel": true,
 	"thinkingDisplay": true, "thinkingDurationMs": true,
+	"madeBy": true, "promptCacheRequested": true,
+	"toolInputStreamMs": true,
+
+	// Entry type tools-used contains the list of tools used.
+	"tools": true,
 
 	// User entries contain turn and scheduling details.
 	"turnCompanion": true, "queueSkipAttachments": true,
