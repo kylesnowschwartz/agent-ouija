@@ -177,6 +177,11 @@ func TestSessionIDFromPath(t *testing.T) {
 			want: "00000000-0000-4000-8000-000000000002",
 		},
 		{
+			name: "thread id with second id",
+			path: "/home/u/.codex/sessions/2026/11/25/rollout-2026-11-25T10-14-00-01a20f5b-c218-7093-bcbf-279dd64eb09c_01a20f68-8ef1-7ca2-8ac2-a77858a5a110.jsonl",
+			want: "01a20f5b-c218-7093-bcbf-279dd64eb09c",
+		},
+		{
 			name: "no trailing UUID",
 			path: "/home/u/.codex/sessions/2026/07/10/notes.jsonl",
 			want: "",
@@ -194,5 +199,68 @@ func TestSessionIDFromPath(t *testing.T) {
 				t.Errorf("SessionIDFromPath(%q) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDiscoverRollouts_ThreadIDWithSecondID(t *testing.T) {
+	sessionsDir := t.TempDir()
+	dir := filepath.Join(sessionsDir, "2026", "11", "25")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	name := "rollout-2026-11-25T10-14-00-01a20f5b-c218-7093-bcbf-279dd64eb09c_01a20f68-8ef1-7ca2-8ac2-a77858a5a110.jsonl"
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := discover.DiscoverRollouts(sessionsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].SessionID != "01a20f5b-c218-7093-bcbf-279dd64eb09c" {
+		t.Fatalf("got = %+v, want the thread id", got)
+	}
+}
+
+func TestThreadRecords(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session_index.jsonl")
+	content := `{"id":"abc","thread_name":"first name","updated_at":"2026-07-10T00:00:00Z"}` + "\n" +
+		`not valid json` + "\n" +
+		`{"id":"abc","thread_name":"renamed","updated_at":"2026-11-24T21:11:31.925232Z"}` + "\n" +
+		`{"id":"def","thread_name":"other thread"}` + "\n" +
+		`{"id":"ghi","thread_name":"bad time","updated_at":"yesterday"}` + "\n" +
+		`{"id":"","thread_name":"no id, skipped"}` + "\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := discover.ThreadRecords(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]discover.ThreadRecord{
+		"abc": {Name: "renamed", UpdatedAt: time.Date(2026, 11, 24, 21, 11, 31, 925232000, time.UTC)},
+		"def": {Name: "other thread"},
+		"ghi": {Name: "bad time"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	for k, w := range want {
+		g := got[k]
+		if g.Name != w.Name || !g.UpdatedAt.Equal(w.UpdatedAt) {
+			t.Errorf("records[%q] = %+v, want %+v", k, g, w)
+		}
+	}
+}
+
+func TestThreadRecords_MissingFile(t *testing.T) {
+	got, err := discover.ThreadRecords(filepath.Join(t.TempDir(), "no-such-file.jsonl"))
+	if err != nil {
+		t.Fatalf("missing file must not error: %v", err)
+	}
+	if got == nil || len(got) != 0 {
+		t.Fatalf("got %+v, want empty non-nil map", got)
 	}
 }

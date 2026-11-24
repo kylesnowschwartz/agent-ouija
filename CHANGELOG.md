@@ -5,6 +5,20 @@ breaking changes require a /v2 module path. The v1 gate (all consumers
 migrated + one real Anthropic format-drift cycle absorbed without API
 breakage) was satisfied 2026-07-05.
 
+## Unreleased
+
+Additive, plus one fix to `codex/discover` rollout ids.
+
+- `codex/discover`: `SessionIDFromPath` and `DiscoverRollouts` return
+  the thread id for rollouts named
+  `rollout-<timestamp>-<thread id>_<second id>.jsonl` (Codex CLI
+  0.172), matching the id in session_meta and `session_index.jsonl`;
+  `rollout-<timestamp>-<thread id>.jsonl` is unchanged.
+- `codex/discover`: `ThreadRecords` returns each thread's latest
+  `session_index.jsonl` record (`ThreadRecord`: name and parsed
+  `updated_at`), with the same missing-file and malformed-line rules as
+  `ThreadNames`, which is built on it.
+
 ## v1.15.0 — 2026-11-14
 
 Additive only.
